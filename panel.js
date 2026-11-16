@@ -5,16 +5,20 @@
   if (!token) { location.replace('index.html'); return; }
   const view = $('#view'), dlg = $('#dlg');
   let me = null;
-  const ACTION_LABELS = { login: 'تسجيل دخول', password: 'تغيير كلمة المرور', 'student.edit': 'تعديل طالب', 'student.password': 'كلمة مرور مؤقتة لطالب', 'student.logout': 'خروج طالب من أجهزته', 'student.delete': 'حذف طالب', 'stages.save': 'حفظ المراحل', 'courses.save': 'حفظ الدورات', 'settings.save': 'حفظ الإعدادات', 'staff.create': 'إنشاء حساب', 'staff.edit': 'تعديل حساب', 'staff.delete': 'حذف حساب', 'student.reject': 'رفض طالب', 'notices.save': 'حفظ الإشعارات', 'security.unblock': 'رفع حظر' };
+  const ACTION_LABELS = { login: 'تسجيل دخول', password: 'تغيير كلمة المرور', 'student.edit': 'تعديل طالب', 'student.password': 'كلمة مرور مؤقتة لطالب', 'student.logout': 'خروج طالب من أجهزته', 'student.delete': 'حذف طالب', 'stages.save': 'حفظ المراحل', 'courses.save': 'حفظ الدورات', 'settings.save': 'حفظ الإعدادات', 'staff.create': 'إنشاء حساب', 'staff.edit': 'تعديل حساب', 'staff.delete': 'حذف حساب', 'student.reject': 'رفض طالب', 'notices.save': 'حفظ الإشعارات', 'security.unblock': 'رفع حظر', 'course.create': 'إنشاء دورة', 'course.edit': 'تعديل دورة', 'course.delete': 'حذف دورة', 'courses.order': 'ترتيب الدورات', 'lecture.create': 'إنشاء محاضرة', 'lecture.edit': 'تعديل محاضرة', 'lecture.delete': 'حذف محاضرة', 'centers.save': 'حفظ السناتر', 'file.upload': 'رفع ملف', 'file.delete': 'حذف ملف', 'codes.create': 'إنشاء أكواد', 'code.enable': 'تفعيل كود', 'code.disable': 'إيقاف كود', 'events.clear': 'مسح سجل الأمان' };
   const SECTIONS = [
     { id: 'overview', title: 'نظرة عامة', icon: 'home', perm: '', render: overview },
     { id: 'students', title: 'الطلاب', icon: 'users', perm: 'students.view', render: students },
     { id: 'stages', title: 'المراحل', icon: 'layers', perm: 'content.edit', render: stages },
-    { id: 'courses', title: 'الدورات', icon: 'book', perm: 'content.edit', render: courses },
+    { id: 'courses', title: 'الدورات والمحاضرات', icon: 'book', perm: 'content.edit', render: () => window.PanelContent.courses() },
+    { id: 'media', title: 'الفيديوهات والملفات', icon: 'folder', perm: 'media.upload', render: () => window.PanelContent.media() },
+    { id: 'centers', title: 'السناتر والمواعيد', icon: 'pin', perm: 'content.edit', render: () => window.PanelContent.centers() },
+    { id: 'codes', title: 'الأكواد', icon: 'ticket', perm: 'codes.manage', render: () => window.PanelCodes.codes() },
     { id: 'notices', title: 'الإشعارات', icon: 'bell', perm: 'content.edit', render: notices },
     { id: 'settings', title: 'إعدادات الموقع', icon: 'settings', perm: 'settings.edit', render: settings },
     { id: 'staff', title: 'الحسابات والصلاحيات', icon: 'shield', perm: 'staff.manage', render: staff },
     { id: 'security', title: 'الحماية', icon: 'lock', perm: 'security.manage', render: security },
+    { id: 'logs', title: 'سجل الأمان', icon: 'activity', perm: 'logs.view', render: () => window.PanelCodes.logs() },
     { id: 'audit', title: 'سجل العمليات', icon: 'list', perm: 'audit.view', render: audit },
     { id: 'system', title: 'الخادم والملفات', icon: 'server', perm: 'system.view', render: system },
     { id: 'account', title: 'حسابي', icon: 'user', perm: '', render: account }
@@ -88,6 +92,7 @@
     sec.render();
   }
   function go(id) { if (location.hash === '#' + id) route(); else location.hash = id; }
+  window.Kit = { call, setView, loading, failed, tone, note, num, card, field, select, check, grid, confirmButton, pager, openDialog, dlg, can, go, h, icon, date, pill, busy, alert, message, get me() { return me; } };
 
   async function overview() {
     const r = await call('admin.overview');
@@ -97,7 +102,9 @@
     const row = (label, value) => h('div', { class: 'row-item' }, h('span', { text: label }), value);
     const quick = [];
     if (can('students.view') && st.wait) quick.push(h('button', { class: 'btn primary', type: 'button', onclick: () => { sq.status = 'wait'; sq.q = ''; sq.offset = 0; go('students'); } }, icon('users'), `مراجعة ${st.wait} طالب`));
-    if (can('content.edit')) quick.push(h('a', { class: 'btn outline', href: '#stages' }, icon('layers'), 'تعديل المراحل'), h('a', { class: 'btn outline', href: '#courses' }, icon('book'), 'الدورات'));
+    if (can('content.edit')) quick.push(h('a', { class: 'btn outline', href: '#courses' }, icon('book'), 'الدورات والمحاضرات'), h('a', { class: 'btn outline', href: '#stages' }, icon('layers'), 'المراحل'));
+    if (can('media.upload')) quick.push(h('a', { class: 'btn outline', href: '#media' }, icon('upload'), 'رفع فيديو أو ملف'));
+    if (can('codes.manage')) quick.push(h('a', { class: 'btn outline', href: '#codes' }, icon('ticket'), 'إنشاء أكواد'));
     if (can('system.view')) quick.push(h('a', { class: 'btn outline', href: '#system' }, icon('server'), 'كشف الخادم'));
     if (can('content.edit')) quick.push(h('a', { class: 'btn outline', href: '#notices' }, icon('bell'), 'الإشعارات'));
     if (can('staff.manage')) quick.push(h('a', { class: 'btn outline', href: '#staff' }, icon('shield'), 'الحسابات'));
@@ -128,17 +135,18 @@
         if (!x.ok) { busy(e.currentTarget, false); alert(msg, message(x.code)); return; }
         students();
       } }, icon('check'), 'تفعيل'));
-      if (can('students.edit') && s.status === 'wait') actions.append(h('button', { class: 'btn outline small', type: 'button', onclick: () => studentDialog(s, r.grades, r.reasons, 'reject') }, icon('x'), 'رفض'));
-      actions.append(h('button', { class: 'btn outline small', type: 'button', onclick: () => studentDialog(s, r.grades, r.reasons) }, icon(can('students.edit') ? 'edit' : 'eye'), can('students.edit') ? 'تعديل' : 'عرض'));
-      return [h('div', {}, h('b', { text: s.name }), s.locked ? h('small', { class: 'muted', text: ' · مقفول مؤقتًا' }) : null, s.status === 'reject' ? h('div', { class: 'muted reject-summary', text: rejectSummary(s.reject) }) : null), num(s.studentPhone), s.grade || '—', pill(s.status), date(s.createdAt), actions];
+      if (can('students.edit') && s.status === 'wait') actions.append(h('button', { class: 'btn outline small', type: 'button', onclick: () => studentDialog(s, r.grades, r.reasons, 'reject', r.centers) }, icon('x'), 'رفض'));
+      actions.append(h('button', { class: 'btn outline small', type: 'button', onclick: () => studentDialog(s, r.grades, r.reasons, '', r.centers) }, icon(can('students.edit') ? 'edit' : 'eye'), can('students.edit') ? 'تعديل' : 'عرض'));
+      return [h('div', {}, h('b', { text: s.name }), h('div', { class: 'muted small', text: s.mode === 'center' ? 'سنتر' + (s.centerName ? ' · ' + s.centerName : '') + (s.scheduleLabel ? ' · ' + s.scheduleLabel : '') : 'أونلاين' }), s.locked ? h('small', { class: 'muted', text: ' · مقفول مؤقتًا' }) : null, s.status === 'reject' ? h('div', { class: 'muted reject-summary', text: rejectSummary(s.reject) }) : null), num(s.studentPhone), s.grade || '—', pill(s.status), date(s.createdAt), actions];
     });
     setView(card('الطلاب', `${r.total} نتيجة`, null, form, msg, grid(['الاسم', 'رقم الطالب', 'المرحلة', 'الحالة', 'التسجيل', ''], rows, 'مفيش طلاب مطابقين.'), pager(r.total, r.offset, 50, o => { sq.offset = o; loading(); students(); })));
   }
   function rejectSummary(rj) { if (!rj) return ''; return (rj.list || []).map(x => x.label).concat(rj.note ? [rj.note] : []).join(' · '); }
-  function studentDialog(s, grades, reasons, preset) {
+  function studentDialog(s, grades, reasons, preset, centers = []) {
     const box = note();
     const photo = /^https:\/\/i\.ibb\.co\//.test(s.photo) ? h('img', { src: s.photo, alt: 'صورة ' + s.name, width: 72, height: 72, class: 'avatar' }) : null;
-    const info = h('dl', { class: 'kv' }, h('dt', { text: 'النوع' }), h('dd', { text: s.gender || '—' }), h('dt', { text: 'تاريخ الميلاد' }), h('dd', { text: s.birthDate || '—', dir: 'ltr' }), h('dt', { text: 'تاريخ التسجيل' }), h('dd', { text: date(s.createdAt, true) }), h('dt', { text: 'آخر دخول' }), h('dd', { text: date(s.lastLogin, true) }));
+    const where = s.mode === 'center' ? 'سنتر · ' + (s.centerName || '—') + (s.scheduleLabel ? ' · ' + s.scheduleLabel : '') : 'أونلاين';
+    const info = h('dl', { class: 'kv' }, h('dt', { text: 'الحضور' }), h('dd', { text: where }), h('dt', { text: 'النوع' }), h('dd', { text: s.gender || '—' }), h('dt', { text: 'تاريخ الميلاد' }), h('dd', { text: s.birthDate || '—', dir: 'ltr' }), h('dt', { text: 'تاريخ التسجيل' }), h('dd', { text: date(s.createdAt, true) }), h('dt', { text: 'آخر دخول' }), h('dd', { text: date(s.lastLogin, true) }));
     if (!can('students.edit')) {
       info.prepend(h('dt', { text: 'الاسم' }), h('dd', { text: s.name }), h('dt', { text: 'رقم الطالب' }), h('dd', {}, num(s.studentPhone)), h('dt', { text: 'ولي الأمر' }), h('dd', {}, num(s.parentPhone)), h('dt', { text: 'البريد' }), h('dd', { text: s.email || '—' }), h('dt', { text: 'المرحلة' }), h('dd', { text: s.grade }), h('dt', { text: 'الحالة' }), h('dd', {}, pill(s.status)));
       if (s.status === 'reject') info.append(h('dt', { text: 'سبب الرفض' }), h('dd', { text: rejectSummary(s.reject) || '—' }));
@@ -151,22 +159,31 @@
       parentPhone: h('input', { value: s.parentPhone, dir: 'ltr', inputmode: 'numeric', maxlength: 11 }),
       email: h('input', { value: s.email, dir: 'ltr', type: 'email', maxlength: 100 }),
       grade: select([...new Set([...grades, s.grade].filter(Boolean))].map(g => [g, g]), s.grade),
-      status: select([['wait', 'تحت المراجعة'], ['done', 'مفعّل'], ['reject', 'مرفوض'], ['ban', 'موقوف']], preset || s.status)
+      status: select([['wait', 'تحت المراجعة'], ['done', 'مفعّل'], ['reject', 'مرفوض'], ['ban', 'موقوف']], preset || s.status),
+      mode: select([['online', 'أونلاين'], ['center', 'سنتر']], s.mode === 'center' ? 'center' : 'online'),
+      center: select([['', 'اختار السنتر'], ...centers.map(c => [c.id, c.name])], s.center || ''),
+      schedule: h('select', {})
     };
+    const fillSched = keep => { const c = centers.find(x => x.id === f.center.value); f.schedule.replaceChildren(h('option', { value: '', text: c ? 'اختار الميعاد' : 'اختار السنتر الأول' }), ...(c ? c.schedules : []).map(x => h('option', { value: x.id, selected: x.id === keep, text: x.label + (x.grade ? ' · ' + x.grade : '') }))); };
+    fillSched(s.schedule);
+    f.center.addEventListener('change', () => fillSched(''));
+    const centerBox = h('div', { class: 'form-grid wide', hidden: f.mode.value !== 'center' }, field('السنتر', f.center), field('الميعاد', f.schedule));
+    f.mode.addEventListener('change', () => { centerBox.hidden = f.mode.value !== 'center'; });
     const had = s.reject || { codes: [], note: '' };
     const picks = Object.entries(reasons || {}).map(([code, label]) => ({ code, ...check(label, (had.codes || []).includes(code)) }));
     const rnote = h('textarea', { maxlength: 300, rows: 2, value: had.note || '', placeholder: 'مثال: اتصلنا برقم ولي الأمر ومحدش رد أكتر من مرة.' });
     const rbox = h('div', { class: 'field wide reject-fields', hidden: f.status.value !== 'reject' }, h('span', { class: 'label', text: 'أسباب الرفض' }), h('div', { class: 'perm-grid' }, picks.map(x => x.el)), field('ملاحظة للطالب', rnote, 'بتظهر للطالب مع الأسباب، وإجبارية لو اخترت «سبب تاني». الطالب هيقدر يصحح بياناته ويرجع للمراجعة.', true));
     f.status.addEventListener('change', () => { rbox.hidden = f.status.value !== 'reject'; });
-    const body = [photo, h('div', { class: 'form-grid' }, field('الاسم', f.name, '', true), field('رقم الطالب', f.studentPhone), field('رقم ولي الأمر', f.parentPhone), field('البريد', f.email, 'اختياري', true), field('المرحلة', f.grade), field('الحالة', f.status, 'الإيقاف أو الرفض أو المراجعة يخرج الطالب من أجهزته.')), rbox, info, box].filter(Boolean);
+    const body = [photo, h('div', { class: 'form-grid' }, field('الاسم', f.name, '', true), field('رقم الطالب', f.studentPhone), field('رقم ولي الأمر', f.parentPhone), field('البريد', f.email, 'اختياري', true), field('المرحلة', f.grade), field('الحالة', f.status, 'الإيقاف أو الرفض أو المراجعة يخرج الطالب من أجهزته.'), field('طريقة الحضور', f.mode, '', true), centerBox), rbox, info, box].filter(Boolean);
     const save = h('button', { class: 'btn primary', type: 'button', onclick: async () => {
       const rejecting = f.status.value === 'reject';
       const codes = rejecting ? picks.filter(x => x.box.checked).map(x => x.code) : [];
       const noteText = rejecting ? rnote.value.trim() : '';
       if (rejecting && !codes.length && !noteText) { alert(box, message('reason_required')); return; }
       if (rejecting && codes.includes('other') && !noteText) { alert(box, message('note_required')); rnote.focus(); return; }
+      if (f.mode.value === 'center' && (!f.center.value || !f.schedule.value)) { alert(box, message('center')); return; }
       busy(save, true);
-      const x = await call('admin.studentSave', { id: s.id, name: f.name.value.trim(), studentPhone: f.studentPhone.value.trim(), parentPhone: f.parentPhone.value.trim(), email: f.email.value.trim().toLowerCase(), grade: f.grade.value, status: f.status.value, reasons: codes, note: noteText });
+      const x = await call('admin.studentSave', { id: s.id, name: f.name.value.trim(), studentPhone: f.studentPhone.value.trim(), parentPhone: f.parentPhone.value.trim(), email: f.email.value.trim().toLowerCase(), grade: f.grade.value, status: f.status.value, reasons: codes, note: noteText, mode: f.mode.value, center: f.mode.value === 'center' ? f.center.value : '', schedule: f.mode.value === 'center' ? f.schedule.value : '' });
       busy(save, false);
       if (!x.ok) { alert(box, message(x.code)); return; }
       Object.assign(s, x.student);
@@ -195,7 +212,8 @@
       if (!x.ok) { alert(box, message(x.code)); return; }
       dlg.close(); students();
     }) : null;
-    openDialog(s.name, body, [save, temp, out, h('span', { class: 'spacer' }), del].filter(Boolean));
+    const money = can('codes.manage') ? h('button', { class: 'btn outline', type: 'button', onclick: () => window.PanelCodes.money(s) }, icon('wallet'), 'المحفظة والمحتوى') : null;
+    openDialog(s.name, body, [save, temp, out, money, h('span', { class: 'spacer' }), del].filter(Boolean));
     if (preset === 'reject') picks[0]?.box.focus();
   }
 
@@ -235,64 +253,6 @@
       alert(msg, x.ok ? 'تم حفظ المراحل، وهتظهر في الصفحة الأولى وصفحة التسجيل.' : message(x.code), x.ok ? 'success' : 'error');
     } }, icon('check'), 'حفظ المراحل');
     setView(card('المراحل الدراسية', 'تظهر في الصفحة الأولى واختيار السنة وقت التسجيل.', [add, save], h('p', { class: 'alert', 'data-type': 'info', text: 'تغيير اسم مرحلة مش بيغيّر مرحلة الطلاب المسجلين قبل كده؛ عدّلهم من صفحة الطلاب لو محتاج.' }), msg, box));
-  }
-
-  async function courses() {
-    const r = await call('admin.courses');
-    if (!r.ok) return failed(r, courses);
-    let list = r.courses.map(c => ({ id: c.id, grade: c.grade, title: c.title, description: c.description, lessons: c.lessons.slice(), active: c.active }));
-    const grades = r.grades;
-    const msg = note();
-    const box = h('div', { class: 'list' });
-    const filter = select([['', 'كل المراحل'], ...grades.map(g => [g, g])], '');
-    filter.addEventListener('change', draw);
-    async function persist(next, done) {
-      const x = await call('admin.coursesSave', { courses: next });
-      if (!x.ok) { alert(msg, message(x.code)); return false; }
-      list = x.courses.map(c => ({ id: c.id, grade: c.grade, title: c.title, description: c.description, lessons: c.lessons.slice(), active: c.active }));
-      alert(msg, done, 'success');
-      draw();
-      return true;
-    }
-    function draw() {
-      const shown = list.map((c, i) => [c, i]).filter(([c]) => !filter.value || c.grade === filter.value);
-      if (!shown.length) { box.replaceChildren(h('p', { class: 'empty', text: list.length ? 'مفيش دورات للمرحلة دي.' : 'لسه مفيش دورات. ابدأ بإضافة أول دورة.' })); return; }
-      box.replaceChildren(...shown.map(([c, i]) => h('div', { class: 'row-item course-row' },
-        h('div', { class: 'course-info' }, h('b', { text: c.title }), h('small', { class: 'muted', text: `${c.grade} · ${c.lessons.length} درس` }), c.description ? h('small', { text: c.description }) : null),
-        h('div', { class: 'actions' }, tone(c.active ? 'ظاهرة' : 'مخفية', c.active ? 'ok' : 'warn'),
-          h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'لأعلى', disabled: i === 0, onclick: e => { const n = list.slice(); [n[i - 1], n[i]] = [n[i], n[i - 1]]; busy(e.currentTarget, true); persist(n, 'تم تغيير الترتيب.'); } }, icon('up')),
-          h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'لأسفل', disabled: i === list.length - 1, onclick: e => { const n = list.slice(); [n[i + 1], n[i]] = [n[i], n[i + 1]]; busy(e.currentTarget, true); persist(n, 'تم تغيير الترتيب.'); } }, icon('down')),
-          h('button', { class: 'btn outline small', type: 'button', onclick: () => edit(i) }, icon('edit'), 'تعديل'),
-          confirmButton('حذف', 'danger small', btn => { busy(btn, true); persist(list.filter((_, n) => n !== i), 'تم حذف الدورة.'); })))));
-    }
-    function edit(i) {
-      const c = i === -1 ? { id: '', grade: filter.value || grades[0] || '', title: '', description: '', lessons: [], active: true } : list[i];
-      const box2 = note();
-      const f = {
-        grade: select([...new Set([...grades, c.grade].filter(Boolean))].map(g => [g, g]), c.grade),
-        title: h('input', { value: c.title, maxlength: 100, autocomplete: 'off', placeholder: 'مثال: الباب الأول — الكيمياء الكهربية' }),
-        description: h('textarea', { maxlength: 300, value: c.description, rows: 2 }),
-        lessons: h('textarea', { value: c.lessons.join('\n'), rows: 8, placeholder: 'كل درس في سطر لوحده' })
-      };
-      const active = check('ظاهرة للطلاب', c.active);
-      const save = h('button', { class: 'btn primary', type: 'button', onclick: async () => {
-        const lessons = f.lessons.value.split('\n').map(l => l.trim().replace(/\s+/g, ' ')).filter(Boolean);
-        const x = { id: c.id, grade: f.grade.value, title: f.title.value.trim(), description: f.description.value.trim(), lessons, active: active.box.checked };
-        if (!x.grade) { alert(box2, 'أضف مرحلة دراسية الأول من صفحة المراحل.'); return; }
-        if (x.title.length < 2) { alert(box2, 'اسم الدورة حرفين على الأقل.'); return; }
-        if (!lessons.length || lessons.length > 40 || lessons.some(l => l.length > 120)) { alert(box2, 'اكتب من درس لـ 40 درس، كل درس في سطر وأقل من 120 حرف.'); return; }
-        const n = list.slice();
-        if (i === -1) n.push(x); else n[i] = x;
-        busy(save, true);
-        const ok = await persist(n, i === -1 ? 'تمت إضافة الدورة، وهتظهر لطلاب المرحلة.' : 'تم حفظ الدورة.');
-        busy(save, false);
-        if (ok) dlg.close(); else alert(box2, msg.textContent);
-      } }, icon('check'), 'حفظ');
-      openDialog(i === -1 ? 'دورة جديدة' : c.title, [h('div', { class: 'form-grid' }, field('المرحلة', f.grade), field('اسم الدورة', f.title, '', true), field('وصف قصير', f.description, 'اختياري', true), field('الدروس', f.lessons, 'كل درس في سطر. تقدم الطالب بيتحسب من الدروس اللي يعلّم عليها.', true)), active.el, box2], [save, h('button', { class: 'btn outline', type: 'button', onclick: () => dlg.close() }, 'إلغاء')]);
-    }
-    draw();
-    const add = h('button', { class: 'btn primary', type: 'button', disabled: list.length >= 50, onclick: () => edit(-1) }, icon('plus'), 'إضافة دورة');
-    setView(card('الدورات', 'كل مرحلة ليها دوراتها، والطالب بيشوف دورات مرحلته بس.', [field('المرحلة', filter), add], h('p', { class: 'alert', 'data-type': 'info', text: 'تقدم الطلاب بيتحفظ على أجهزتهم. لو غيّرت اسم درس، علامة الإنجاز بتاعته بتتشال عند الطلاب.' }), msg, box));
   }
 
   async function notices() {
@@ -411,21 +371,36 @@
     const ann = h('textarea', { maxlength: 300, value: s.announcement });
     const phones = h('textarea', { rows: 3, dir: 'ltr', value: String(s.support_phones || '').split(/\s+/).filter(Boolean).join('\n'), placeholder: '01xxxxxxxxx' });
     const hours = h('input', { type: 'number', min: 1, max: 720, dir: 'ltr', value: s.block_hours || '24' });
+    const teacher = h('input', { dir: 'ltr', inputmode: 'numeric', maxlength: 11, value: s.teacher_phone || '', placeholder: '01xxxxxxxxx' });
+    const subject = h('textarea', { rows: 2, dir: 'ltr', value: String(s.subject_phones || '').split(/\s+/).filter(Boolean).join('\n'), placeholder: '01xxxxxxxxx' });
+    const about = h('textarea', { rows: 5, maxlength: 1500, value: s.about || '', placeholder: 'نبذة عن المنصة والمستر تظهر في صفحة «عن المنصة». سيبها فاضية للنص الافتراضي.' });
+    let socialsNow = {};
+    try { socialsNow = JSON.parse(s.socials || '{}') || {}; } catch { socialsNow = {}; }
+    const SOC = [['facebook', 'فيسبوك'], ['youtube', 'يوتيوب'], ['instagram', 'إنستجرام'], ['tiktok', 'تيك توك'], ['telegram', 'تيليجرام'], ['whatsapp', 'قناة واتساب']];
+    const socials = SOC.map(([k, label]) => ({ k, label, input: h('input', { type: 'url', dir: 'ltr', maxlength: 200, value: socialsNow[k] || '', placeholder: 'https://' }) }));
     const msg = note();
     const save = h('button', { class: 'btn primary', type: 'button', onclick: async () => {
       const digits = v => v.replace(/[\u0660-\u0669]/g, d => String(d.charCodeAt(0) - 0x660));
       const list = [...new Set(digits(phones.value).split(/[\s,،]+/).filter(Boolean))];
       if (list.length > 5 || list.some(p => !/^01[0125][0-9]{8}$/.test(p))) { alert(msg, 'أرقام الدعم لحد 5 أرقام، وكل رقم موبايل مصري صحيح في سطر لوحده.'); return; }
+      const subj = [...new Set(digits(subject.value).split(/[\s,،]+/).filter(Boolean))];
+      if (subj.length > 5 || subj.some(p => !/^01[0125][0-9]{8}$/.test(p))) { alert(msg, 'أرقام دعم المادة لحد 5 أرقام صحيحة.'); return; }
+      const tp = digits(teacher.value.trim());
+      if (tp && !/^01[0125][0-9]{8}$/.test(tp)) { alert(msg, 'رقم المستر مش رقم موبايل مصري صحيح.'); return; }
+      const soc = {};
+      for (const x of socials) { const v = x.input.value.trim(); if (v && !/^https:\/\//.test(v)) { alert(msg, `رابط ${x.label} لازم يبدأ بـ https://`); return; } soc[x.k] = v; }
       const h2 = Number(hours.value);
       if (!Number.isInteger(h2) || h2 < 1 || h2 > 720) { alert(msg, 'مدة الحظر من ساعة لـ 720 ساعة.'); return; }
       busy(save, true);
-      const x = await call('admin.settingsSave', { settings: { registration_open: reg.box.checked, maintenance: maint.box.checked, maintenance_message: mm.value.trim(), announcement: ann.value.trim(), support_phones: list, block_hours: h2 } });
+      const x = await call('admin.settingsSave', { settings: { registration_open: reg.box.checked, maintenance: maint.box.checked, maintenance_message: mm.value.trim(), announcement: ann.value.trim(), support_phones: list, block_hours: h2, teacher_phone: tp, subject_phones: subj, socials: soc, about: about.value.trim() } });
       busy(save, false);
       alert(msg, x.ok ? 'تم حفظ الإعدادات وتطبيقها على الموقع.' : message(x.code), x.ok ? 'success' : 'error');
     } }, icon('check'), 'حفظ الإعدادات');
     setView(card('إعدادات الموقع', 'التغييرات بتتطبق فورًا على الموقع.', save, msg,
       h('div', { class: 'list' }, reg.el, maint.el),
-      h('div', { class: 'form-grid' }, field('رسالة الصيانة', mm, 'تظهر في صفحة الصيانة. وقت الصيانة محدش من الطلاب يقدر يفتح المنصة.', true), field('إعلان عام', ann, 'يظهر أعلى الصفحة الأولى وفي الرئيسية للطلاب. سيبه فاضي لإخفائه.', true), field('أرقام دعم المنصة', phones, 'لحد 5 أرقام، كل رقم في سطر. بتظهر للطلاب في «نسيت كلمة المرور» كزر واتساب، وهي مختلفة عن رقم المستر.', true), field('مدة حظر الجهاز (بالساعات)', hours, 'لما طالب يحاول يفتح أدوات المطور أو كود الصفحة.'))));
+      h('div', { class: 'form-grid' }, field('رسالة الصيانة', mm, 'تظهر في صفحة الصيانة. وقت الصيانة محدش من الطلاب يقدر يفتح المنصة.', true), field('إعلان عام', ann, 'يظهر أعلى الصفحة الأولى وفي الرئيسية للطلاب. سيبه فاضي لإخفائه.', true), field('أرقام دعم المنصة', phones, 'لحد 5 أرقام، كل رقم في سطر. بتظهر للطلاب في «نسيت كلمة المرور» كزر واتساب، وهي مختلفة عن رقم المستر.', true), field('مدة حظر الجهاز (بالساعات)', hours, 'لما طالب يحاول يفتح أدوات المطور أو كود الصفحة.')),
+      h('h3', { class: 'sub-head', text: 'صفحة «تواصل معانا» و«عن المنصة»' }),
+      h('div', { class: 'form-grid' }, field('رقم مستر إسلام', teacher, 'اختياري. بيظهر في صفحة التواصل.'), field('أرقام دعم المادة العلمية', subject, 'لحد 5 أرقام، كل رقم في سطر.'), ...socials.map(x => field(x.label, x.input)), field('نبذة عن المنصة', about, 'لحد 1500 حرف.', true))));
   }
 
   async function staff(data) {

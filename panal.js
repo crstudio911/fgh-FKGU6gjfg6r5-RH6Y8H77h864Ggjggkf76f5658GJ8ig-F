@@ -35,13 +35,26 @@ const Panel = (() => {
     dates: 'ميعاد الانتهاء لازم يكون بعد ميعاد البداية.',
     site_url: 'أضف SITE_URL في متغيرات الوركر علشان يقدر يفحص ملفات الموقع.',
     manifest: 'ملف files.json مش موجود على الموقع أو غير صالح.',
+    center: 'اختار السنتر والميعاد، أو خليه أونلاين.',
+    file: 'في عنصر في المحاضرة من غير ملف أو الملف اتحذف. اختار ملف لكل عنصر.',
+    file_used: 'الملف ده مستخدم في محاضرة. شيله من المحاضرة الأول.',
+    drive_folder: 'GOOGLE_DRIVE_FOLDER_ID مش متضاف في Script Properties.',
+    drive_keys: 'مفاتيح حساب الخدمة GOOGLE_SERVICE_ACCOUNT_EMAIL و GOOGLE_PRIVATE_KEY ناقصة.',
+    drive_auth: 'جوجل رفض مفاتيح حساب الخدمة. راجع GOOGLE_PRIVATE_KEY والإيميل.',
+    drive_quota: 'حساب الخدمة مالوش مساحة تخزين. شارك الفولدر من Shared Drive أو خلّي DRIVE_AUTH = owner (شوف ملف INSTALL).',
+    drive: 'جوجل درايف رفض العملية. جرّب تاني أو راجع إعدادات الفولدر.',
+    upload_expired: 'جلسة الرفع انتهت. ابدأ رفع الملف من الأول.',
+    upload: 'تعذر رفع الصورة. تأكد من IMG-API وجرّب تاني.',
     server: 'حصلت مشكلة في الخادم. حاول تاني بعد شوية.'
   };
   const PERM_LABELS = {
     'students.view': 'عرض الطلاب',
     'students.edit': 'تعديل وتفعيل الطلاب',
     'students.delete': 'حذف الطلاب',
-    'content.edit': 'المراحل والدورات والإشعارات',
+    'content.edit': 'المراحل والدورات والمحاضرات والسناتر والإشعارات',
+    'media.upload': 'رفع الفيديوهات والملفات',
+    'codes.manage': 'الأكواد ومحافظ الطلاب',
+    'logs.view': 'سجل الأمان',
     'settings.edit': 'إعدادات الموقع',
     'staff.manage': 'إدارة الحسابات',
     'security.manage': 'الحماية والحظر',
@@ -107,5 +120,6 @@ const Panel = (() => {
   function pill(status) { const s = STATUS[status] || [status || '—', '']; return h('span', { class: 'pill', 'data-tone': s[1], text: s[0] }); }
   function busy(btn, on) { if (!btn) return; btn.disabled = on; btn.classList.toggle('loading', on); btn.setAttribute('aria-busy', String(on)); }
   function alert(el, text, type = 'error') { el.textContent = text || ''; el.dataset.type = type; el.hidden = !text; }
-  return { api, h, icon, date, pill, busy, alert, message: c => messages[c] || messages.server, PERM_LABELS, ROLE_LABELS, token: session.get, setToken: session.set, clearToken: session.del };
+  const workerOrigin = () => new URL(window.PANEL_CONFIG.api).origin;
+  return { workerOrigin, api, h, icon, date, pill, busy, alert, message: c => messages[c] || messages.server, PERM_LABELS, ROLE_LABELS, token: session.get, setToken: session.set, clearToken: session.del };
 })();
