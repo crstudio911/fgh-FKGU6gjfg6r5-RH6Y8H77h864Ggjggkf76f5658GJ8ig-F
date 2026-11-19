@@ -1,34 +1,60 @@
 (() => {
-  const { api, h, icon, date, pill, busy, alert, message, PERM_LABELS, ROLE_LABELS } = Panel;
+  const { api, h, icon, date, pill, busy, alert, message, PERM_LABELS, GROUP_LABELS, ROLE_LABELS } = Panel;
   const $ = s => document.querySelector(s);
   const token = Panel.token();
   if (!token) { location.replace('index.html'); return; }
   const view = $('#view'), dlg = $('#dlg');
   let me = null;
-  const ACTION_LABELS = { login: 'تسجيل دخول', password: 'تغيير كلمة المرور', 'student.edit': 'تعديل طالب', 'student.password': 'كلمة مرور مؤقتة لطالب', 'student.logout': 'خروج طالب من أجهزته', 'student.delete': 'حذف طالب', 'stages.save': 'حفظ المراحل', 'courses.save': 'حفظ الدورات', 'settings.save': 'حفظ الإعدادات', 'staff.create': 'إنشاء حساب', 'staff.edit': 'تعديل حساب', 'staff.delete': 'حذف حساب', 'student.reject': 'رفض طالب', 'notices.save': 'حفظ الإشعارات', 'security.unblock': 'رفع حظر', 'course.create': 'إنشاء دورة', 'course.edit': 'تعديل دورة', 'course.delete': 'حذف دورة', 'courses.order': 'ترتيب الدورات', 'lecture.create': 'إنشاء محاضرة', 'lecture.edit': 'تعديل محاضرة', 'lecture.delete': 'حذف محاضرة', 'centers.save': 'حفظ السناتر', 'file.upload': 'رفع ملف', 'file.delete': 'حذف ملف', 'codes.create': 'إنشاء أكواد', 'code.enable': 'تفعيل كود', 'code.disable': 'إيقاف كود', 'events.clear': 'مسح سجل الأمان' };
+  const ACTION_LABELS = { login: 'تسجيل دخول', password: 'تغيير كلمة المرور', 'student.edit': 'تعديل طالب', 'student.password': 'كلمة مرور مؤقتة لطالب', 'student.logout': 'خروج طالب من أجهزته', 'student.delete': 'حذف طالب', 'stages.save': 'حفظ المراحل', 'courses.save': 'حفظ الدورات', 'settings.save': 'حفظ الإعدادات', 'staff.create': 'إنشاء حساب', 'staff.edit': 'تعديل حساب', 'staff.delete': 'حذف حساب', 'student.reject': 'رفض طالب', 'notices.save': 'حفظ الإشعارات', 'security.unblock': 'رفع حظر', 'course.create': 'إنشاء دورة', 'course.edit': 'تعديل دورة', 'course.delete': 'حذف دورة', 'courses.order': 'ترتيب الدورات', 'lecture.create': 'إنشاء محاضرة', 'lecture.edit': 'تعديل محاضرة', 'lecture.delete': 'حذف محاضرة', 'centers.save': 'حفظ السناتر', 'file.upload': 'رفع ملف', 'file.delete': 'حذف ملف', 'codes.create': 'إنشاء أكواد', 'code.enable': 'تفعيل كود', 'code.disable': 'إيقاف كود', 'events.clear': 'مسح سجل الأمان', 'audit.clear': 'مسح سجل العمليات', 'assess.create': 'إنشاء واجب أو امتحان', 'assess.edit': 'تعديل واجب أو امتحان', 'assess.delete': 'حذف واجب أو امتحان', 'result.reset': 'إعادة فتح امتحان لطالب', 'data.export': 'تحميل بيانات' };
   const SECTIONS = [
-    { id: 'overview', title: 'نظرة عامة', icon: 'home', perm: '', render: overview },
-    { id: 'students', title: 'الطلاب', icon: 'users', perm: 'students.view', render: students },
-    { id: 'stages', title: 'المراحل', icon: 'layers', perm: 'content.edit', render: stages },
-    { id: 'courses', title: 'الدورات والمحاضرات', icon: 'book', perm: 'content.edit', render: () => window.PanelContent.courses() },
-    { id: 'media', title: 'الفيديوهات والملفات', icon: 'folder', perm: 'media.upload', render: () => window.PanelContent.media() },
-    { id: 'centers', title: 'السناتر والمواعيد', icon: 'pin', perm: 'content.edit', render: () => window.PanelContent.centers() },
-    { id: 'codes', title: 'الأكواد', icon: 'ticket', perm: 'codes.manage', render: () => window.PanelCodes.codes() },
-    { id: 'notices', title: 'الإشعارات', icon: 'bell', perm: 'content.edit', render: notices },
-    { id: 'settings', title: 'إعدادات الموقع', icon: 'settings', perm: 'settings.edit', render: settings },
-    { id: 'staff', title: 'الحسابات والصلاحيات', icon: 'shield', perm: 'staff.manage', render: staff },
-    { id: 'security', title: 'الحماية', icon: 'lock', perm: 'security.manage', render: security },
-    { id: 'logs', title: 'سجل الأمان', icon: 'activity', perm: 'logs.view', render: () => window.PanelCodes.logs() },
-    { id: 'audit', title: 'سجل العمليات', icon: 'list', perm: 'audit.view', render: audit },
-    { id: 'system', title: 'الخادم والملفات', icon: 'server', perm: 'system.view', render: system },
-    { id: 'account', title: 'حسابي', icon: 'user', perm: '', render: account }
+    { id: 'overview', title: 'نظرة عامة', icon: 'home', perm: '', keys: ['overview'], render: overview, prefetch: () => get('overview', () => call('admin.overview')) },
+    { id: 'students', title: 'الطلاب', icon: 'users', perm: 'students.view', keys: ['students'], render: students, prefetch: () => get(studentsKey(), () => call('admin.students', { q: sq.q, status: sq.status, offset: sq.offset })) },
+    { id: 'stages', title: 'المراحل', icon: 'layers', perm: 'stages.edit', keys: ['stages'], render: stages, prefetch: () => get('stages', () => call('admin.stages')) },
+    { id: 'courses', title: 'الدورات والمحاضرات', icon: 'book', perm: 'courses.edit', keys: ['content'], render: () => window.PanelContent.courses(), prefetch: () => get('content', () => call('admin.content')) },
+    { id: 'assess', title: 'الواجبات والامتحانات', icon: 'clipboard', perm: ['assess.edit', 'results.view'], keys: ['assess', 'results'], render: () => window.PanelAssess.list(), prefetch: () => get('assess', () => call('admin.assess')) },
+    { id: 'media', title: 'الفيديوهات والملفات', icon: 'folder', perm: ['media.upload', 'media.delete'], keys: ['media'], render: () => window.PanelContent.media(), prefetch: () => get('media', () => call('admin.media')) },
+    { id: 'centers', title: 'السناتر والمواعيد', icon: 'pin', perm: 'centers.edit', keys: ['centers'], render: () => window.PanelContent.centers(), prefetch: () => get('centers', () => call('admin.centers')) },
+    { id: 'codes', title: 'الأكواد', icon: 'ticket', perm: ['codes.create', 'codes.manage'], keys: ['codes'], render: () => window.PanelCodes.codes(), prefetch: () => window.PanelCodes.prefetch() },
+    { id: 'notices', title: 'الإشعارات', icon: 'bell', perm: 'notices.edit', keys: ['notices'], render: notices, prefetch: () => get('notices', () => call('admin.notices')) },
+    { id: 'contacts', title: 'أرقام التواصل', icon: 'phone', perm: 'contacts.edit', keys: ['settings'], render: contacts, prefetch: () => get('settings', () => call('admin.settings')) },
+    { id: 'settings', title: 'إعدادات الموقع', icon: 'settings', perm: 'settings.edit', keys: ['settings'], render: settings, prefetch: () => get('settings', () => call('admin.settings')) },
+    { id: 'staff', title: 'الحسابات والصلاحيات', icon: 'shield', perm: 'staff.manage', keys: ['staff'], render: staff, prefetch: () => get('staff', () => call('admin.staff')) },
+    { id: 'security', title: 'الحماية', icon: 'lock', perm: 'security.manage', keys: ['blocks'], render: security, prefetch: () => get('blocks', () => call('admin.blocks')) },
+    { id: 'logs', title: 'سجل الأمان', icon: 'activity', perm: 'logs.view', keys: ['events'], render: () => window.PanelCodes.logs(), prefetch: () => window.PanelCodes.prefetchLogs() },
+    { id: 'audit', title: 'سجل العمليات', icon: 'list', perm: 'audit.view', keys: ['audit'], render: audit, prefetch: () => get('audit:' + auditOffset, () => call('admin.audit', { offset: auditOffset })) },
+    { id: 'data', title: 'كل البيانات', icon: 'database', perm: 'data.view', keys: ['data'], render: () => window.PanelData.view(), prefetch: () => window.PanelData.prefetch() },
+    { id: 'system', title: 'الخادم والملفات', icon: 'server', perm: 'system.view', keys: ['health'], render: system, prefetch: () => get('health', () => call('admin.health')) },
+    { id: 'account', title: 'حسابي', icon: 'user', perm: '', keys: [], render: account }
   ];
+  const store = new Map(), stamps = new Map(), pending = new Map();
+  const WRITES = {
+    'admin.studentSave': ['students', 'overview'], 'admin.studentLogout': ['overview'], 'admin.studentDelete': ['students', 'overview'],
+    'admin.stagesSave': ['stages', 'overview', 'content', 'notices', 'centers', 'students'], 'admin.noticesSave': ['notices'],
+    'admin.courseSave': ['content', 'codes', 'overview', 'assess', 'media'], 'admin.courseDelete': ['content', 'codes', 'overview', 'assess', 'media'], 'admin.coursesOrder': ['content'],
+    'admin.lectureSave': ['content', 'codes', 'assess', 'media'], 'admin.lectureDelete': ['content', 'codes', 'assess', 'media'],
+    'admin.centersSave': ['centers', 'content', 'students'], 'admin.uploadDone': ['media', 'content', 'assess'], 'admin.fileDelete': ['media', 'content', 'assess'],
+    'admin.codesCreate': ['codes'], 'admin.codeToggle': ['codes'], 'admin.eventsClear': ['events'], 'admin.unblock': ['blocks'],
+    'admin.settingsSave': ['settings', 'overview'], 'admin.staffSave': ['staff', 'overview'], 'admin.staffDelete': ['staff', 'overview'], 'admin.auditClear': ['overview'],
+    'admin.run': ['health', 'overview', 'students', 'events', 'blocks'], 'admin.assessSave': ['assess', 'content', 'media'], 'admin.assessDelete': ['assess', 'content', 'media'], 'admin.resultReset': ['results', 'assess']
+  };
+  function drop(...prefixes) { for (const k of [...store.keys()]) if (prefixes.some(p => k === p || k.startsWith(p + ':'))) { store.delete(k); stamps.delete(k); } }
+  function put(key, r) { if (r && r.ok) { store.set(key, r); stamps.set(key, Date.now()); } return r; }
+  async function get(key, load, force) {
+    if (!force && store.has(key)) return store.get(key);
+    if (!force && pending.has(key)) return pending.get(key);
+    const job = (async () => { const r = await load(); put(key, r); return r; })();
+    pending.set(key, job);
+    try { return await job; } finally { pending.delete(key); }
+  }
+  const studentsKey = () => 'students:' + JSON.stringify([sq.q, sq.status, sq.offset]);
   const sq = { q: '', status: '', offset: 0 };
   let auditOffset = 0;
-  const can = p => !p || me.role === 'developer' || me.permissions.includes(p);
+  const can = p => !p || me.role === 'developer' || (Array.isArray(p) ? p.some(x => me.permissions.includes(x)) : me.permissions.includes(p));
   async function call(action, payload = {}) {
     const r = await api(action, { token, ...payload });
     if (!r.ok && (r.code === 'session' || r.code === 'disabled')) { Panel.clearToken(); location.replace('index.html?notice=' + r.code); }
+    if (r.ok && WRITES[action]) drop(...WRITES[action], 'audit', 'data');
+    else if (r.ok && /^admin\.(studentPassword|password|codesCreate|uploadStart)$/.test(action)) drop('audit', 'data');
     return r;
   }
   const setView = (...nodes) => view.replaceChildren(...nodes);
@@ -80,37 +106,60 @@
   $('#menu').addEventListener('click', () => setSide(!$('#side').classList.contains('open')));
   $('#scrim').addEventListener('click', () => setSide(false));
   document.addEventListener('keydown', e => { if (e.key === 'Escape') setSide(false); });
+  let current = null;
+  function stampText() {
+    const keys = current ? [...stamps.keys()].filter(k => current.keys.some(p => k === p || k.startsWith(p + ':'))) : [];
+    const at = keys.length ? Math.min(...keys.map(k => stamps.get(k))) : 0;
+    if (!at) { $('#stamp').textContent = ''; return; }
+    const s = Math.round((Date.now() - at) / 1000);
+    $('#stamp').textContent = s < 50 ? 'محدّثة الآن' : s < 3600 ? 'آخر تحديث من ' + Math.round(s / 60) + ' دقيقة' : 'آخر تحديث ' + date(at, true);
+  }
+  setInterval(stampText, 30000);
+  async function show(sec) {
+    const slow = setTimeout(loading, 140);
+    try { await sec.render(); } finally { clearTimeout(slow); stampText(); }
+  }
+  $('#refresh').addEventListener('click', async () => {
+    if (!current || !current.keys.length) return;
+    const btn = $('#refresh');
+    btn.classList.add('spin'); btn.disabled = true;
+    drop(...current.keys);
+    try { await show(current); } finally { btn.classList.remove('spin'); btn.disabled = false; }
+  });
   function route() {
     const id = location.hash.slice(1) || 'overview';
     const sec = SECTIONS.find(s => s.id === id && can(s.perm)) || SECTIONS[0];
+    current = sec;
+    $('#refresh').hidden = !sec.keys.length;
     document.querySelectorAll('#nav a').forEach(a => { const on = a.dataset.id === sec.id; a.classList.toggle('active', on); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
     $('#title').textContent = sec.title;
     document.title = sec.title + ' | لوحة التحكم';
     setSide(false);
     if (dlg.open) dlg.close();
-    loading();
-    sec.render();
+    show(sec);
   }
   function go(id) { if (location.hash === '#' + id) route(); else location.hash = id; }
-  window.Kit = { call, setView, loading, failed, tone, note, num, card, field, select, check, grid, confirmButton, pager, openDialog, dlg, can, go, h, icon, date, pill, busy, alert, message, get me() { return me; } };
+  window.Kit = { call, get, put, drop, setView, loading, failed, tone, note, num, card, field, select, check, grid, confirmButton, pager, openDialog, dlg, can, go, h, icon, date, pill, busy, alert, message, rerender: () => current && show(current), get me() { return me; } };
 
   async function overview() {
-    const r = await call('admin.overview');
+    const r = await get('overview', () => call('admin.overview'));
     if (!r.ok) return failed(r, overview);
     const st = r.students, s = r.settings || {};
     const stat = (v, label, t) => h('div', { class: 'stat', 'data-tone': t }, h('b', { text: String(v) }), h('span', { text: label }));
     const row = (label, value) => h('div', { class: 'row-item' }, h('span', { text: label }), value);
     const quick = [];
-    if (can('students.view') && st.wait) quick.push(h('button', { class: 'btn primary', type: 'button', onclick: () => { sq.status = 'wait'; sq.q = ''; sq.offset = 0; go('students'); } }, icon('users'), `مراجعة ${st.wait} طالب`));
-    if (can('content.edit')) quick.push(h('a', { class: 'btn outline', href: '#courses' }, icon('book'), 'الدورات والمحاضرات'), h('a', { class: 'btn outline', href: '#stages' }, icon('layers'), 'المراحل'));
+    if (can('students.approve') && st.wait) quick.push(h('button', { class: 'btn primary', type: 'button', onclick: () => { sq.status = 'wait'; sq.q = ''; sq.offset = 0; go('students'); } }, icon('users'), `مراجعة ${st.wait} طالب`));
+    if (can('courses.edit')) quick.push(h('a', { class: 'btn outline', href: '#courses' }, icon('book'), 'الدورات والمحاضرات'));
+    if (can('assess.edit')) quick.push(h('a', { class: 'btn outline', href: '#assess' }, icon('clipboard'), 'واجب أو امتحان جديد'));
     if (can('media.upload')) quick.push(h('a', { class: 'btn outline', href: '#media' }, icon('upload'), 'رفع فيديو أو ملف'));
-    if (can('codes.manage')) quick.push(h('a', { class: 'btn outline', href: '#codes' }, icon('ticket'), 'إنشاء أكواد'));
+    if (can('codes.create')) quick.push(h('a', { class: 'btn outline', href: '#codes' }, icon('ticket'), 'إنشاء أكواد'));
+    if (can('contacts.edit')) quick.push(h('a', { class: 'btn outline', href: '#contacts' }, icon('phone'), 'أرقام التواصل'));
     if (can('system.view')) quick.push(h('a', { class: 'btn outline', href: '#system' }, icon('server'), 'كشف الخادم'));
-    if (can('content.edit')) quick.push(h('a', { class: 'btn outline', href: '#notices' }, icon('bell'), 'الإشعارات'));
+    if (can('notices.edit')) quick.push(h('a', { class: 'btn outline', href: '#notices' }, icon('bell'), 'الإشعارات'));
     if (can('staff.manage')) quick.push(h('a', { class: 'btn outline', href: '#staff' }, icon('shield'), 'الحسابات'));
     if (can('security.manage')) quick.push(h('a', { class: 'btn outline', href: '#security' }, icon('lock'), 'الحماية'));
     setView(
-      h('div', { class: 'stats' }, stat(st.total, 'إجمالي الطلاب'), stat(st.wait, 'تحت المراجعة', 'warn'), stat(st.done, 'حساب مفعّل', 'ok'), stat(st.ban, 'موقوف', 'bad'), stat(st.reject ?? 0, 'مرفوض', 'bad'), stat(r.sessions, 'جلسات طلاب نشطة'), stat(r.stages, 'المراحل'), stat(r.courses ?? 0, 'الدورات'), r.staff !== undefined ? stat(r.staff, 'حسابات اللوحة') : null),
+      h('div', { class: 'stats' }, stat(st.total, 'إجمالي الطلاب'), stat(st.wait, 'تحت المراجعة', 'warn'), stat(st.done, 'حساب مفعّل', 'ok'), stat(st.ban, 'موقوف', 'bad'), stat(st.reject ?? 0, 'مرفوض', 'bad'), stat(r.sessions, 'جلسات طلاب نشطة'), stat(r.stages, 'المراحل'), stat(r.courses ?? 0, 'الدورات'), stat(r.assessments ?? 0, 'واجبات وامتحانات'), r.staff !== undefined ? stat(r.staff, 'حسابات اللوحة') : null),
       h('div', { class: 'grid-2' },
         card('حالة الموقع', 'تتغير من إعدادات الموقع.', can('settings.edit') ? h('a', { class: 'btn outline small', href: '#settings' }, icon('edit'), 'تعديل') : null,
           h('div', { class: 'list' }, row('التسجيل', tone(s.registration_open ? 'مفتوح' : 'مقفول', s.registration_open ? 'ok' : 'bad')), row('وضع الصيانة', tone(s.maintenance ? 'مفعّل' : 'متوقف', s.maintenance ? 'warn' : 'ok')), row('الإعلان', h('small', { text: s.announcement || '—' })))),
@@ -121,7 +170,7 @@
   const actionLabel = a => ACTION_LABELS[a] || (a.startsWith('run.') ? 'تشغيل دالة ' + a.slice(4) : a);
 
   async function students() {
-    const r = await call('admin.students', { q: sq.q, status: sq.status, offset: sq.offset });
+    const r = await get(studentsKey(), () => call('admin.students', { q: sq.q, status: sq.status, offset: sq.offset }));
     if (!r.ok) return failed(r, students);
     const q = h('input', { type: 'search', value: sq.q, placeholder: 'الاسم أو الهاتف أو البريد', maxlength: 60 });
     const status = select([['', 'كل الحالات'], ['wait', 'تحت المراجعة'], ['done', 'مفعّل'], ['reject', 'مرفوض'], ['ban', 'موقوف']], sq.status);
@@ -129,14 +178,15 @@
     const msg = note('success');
     const rows = r.students.map(s => {
       const actions = h('div', { class: 'actions' });
-      if (can('students.edit') && s.status === 'wait') actions.append(h('button', { class: 'btn primary small', type: 'button', onclick: async e => {
+      if (can('students.approve') && s.status === 'wait') actions.append(h('button', { class: 'btn primary small', type: 'button', onclick: async e => {
         busy(e.currentTarget, true);
         const x = await call('admin.studentSave', { id: s.id, name: s.name, studentPhone: s.studentPhone, parentPhone: s.parentPhone, email: s.email, grade: s.grade, status: 'done' });
         if (!x.ok) { busy(e.currentTarget, false); alert(msg, message(x.code)); return; }
         students();
       } }, icon('check'), 'تفعيل'));
-      if (can('students.edit') && s.status === 'wait') actions.append(h('button', { class: 'btn outline small', type: 'button', onclick: () => studentDialog(s, r.grades, r.reasons, 'reject', r.centers) }, icon('x'), 'رفض'));
-      actions.append(h('button', { class: 'btn outline small', type: 'button', onclick: () => studentDialog(s, r.grades, r.reasons, '', r.centers) }, icon(can('students.edit') ? 'edit' : 'eye'), can('students.edit') ? 'تعديل' : 'عرض'));
+      if (can('students.approve') && s.status === 'wait') actions.append(h('button', { class: 'btn outline small', type: 'button', onclick: () => studentDialog(s, r.grades, r.reasons, 'reject', r.centers) }, icon('x'), 'رفض'));
+      const editable = can('students.edit') || can('students.approve');
+      actions.append(h('button', { class: 'btn outline small', type: 'button', onclick: () => studentDialog(s, r.grades, r.reasons, '', r.centers) }, icon(editable ? 'edit' : 'eye'), editable ? 'تعديل' : 'عرض'));
       return [h('div', {}, h('b', { text: s.name }), h('div', { class: 'muted small', text: s.mode === 'center' ? 'سنتر' + (s.centerName ? ' · ' + s.centerName : '') + (s.scheduleLabel ? ' · ' + s.scheduleLabel : '') : 'أونلاين' }), s.locked ? h('small', { class: 'muted', text: ' · مقفول مؤقتًا' }) : null, s.status === 'reject' ? h('div', { class: 'muted reject-summary', text: rejectSummary(s.reject) }) : null), num(s.studentPhone), s.grade || '—', pill(s.status), date(s.createdAt), actions];
     });
     setView(card('الطلاب', `${r.total} نتيجة`, null, form, msg, grid(['الاسم', 'رقم الطالب', 'المرحلة', 'الحالة', 'التسجيل', ''], rows, 'مفيش طلاب مطابقين.'), pager(r.total, r.offset, 50, o => { sq.offset = o; loading(); students(); })));
@@ -147,7 +197,7 @@
     const photo = /^https:\/\/i\.ibb\.co\//.test(s.photo) ? h('img', { src: s.photo, alt: 'صورة ' + s.name, width: 72, height: 72, class: 'avatar' }) : null;
     const where = s.mode === 'center' ? 'سنتر · ' + (s.centerName || '—') + (s.scheduleLabel ? ' · ' + s.scheduleLabel : '') : 'أونلاين';
     const info = h('dl', { class: 'kv' }, h('dt', { text: 'الحضور' }), h('dd', { text: where }), h('dt', { text: 'النوع' }), h('dd', { text: s.gender || '—' }), h('dt', { text: 'تاريخ الميلاد' }), h('dd', { text: s.birthDate || '—', dir: 'ltr' }), h('dt', { text: 'تاريخ التسجيل' }), h('dd', { text: date(s.createdAt, true) }), h('dt', { text: 'آخر دخول' }), h('dd', { text: date(s.lastLogin, true) }));
-    if (!can('students.edit')) {
+    if (!can('students.edit') && !can('students.approve')) {
       info.prepend(h('dt', { text: 'الاسم' }), h('dd', { text: s.name }), h('dt', { text: 'رقم الطالب' }), h('dd', {}, num(s.studentPhone)), h('dt', { text: 'ولي الأمر' }), h('dd', {}, num(s.parentPhone)), h('dt', { text: 'البريد' }), h('dd', { text: s.email || '—' }), h('dt', { text: 'المرحلة' }), h('dd', { text: s.grade }), h('dt', { text: 'الحالة' }), h('dd', {}, pill(s.status)));
       if (s.status === 'reject') info.append(h('dt', { text: 'سبب الرفض' }), h('dd', { text: rejectSummary(s.reject) || '—' }));
       openDialog(s.name, [photo, info].filter(Boolean), [h('button', { class: 'btn outline', type: 'button', onclick: () => dlg.close() }, 'إغلاق')]);
@@ -164,6 +214,8 @@
       center: select([['', 'اختار السنتر'], ...centers.map(c => [c.id, c.name])], s.center || ''),
       schedule: h('select', {})
     };
+    if (!can('students.edit')) ['name', 'studentPhone', 'parentPhone', 'email', 'grade', 'mode', 'center', 'schedule'].forEach(k => { f[k].disabled = true; });
+    if (!can('students.approve')) f.status.disabled = true;
     const fillSched = keep => { const c = centers.find(x => x.id === f.center.value); f.schedule.replaceChildren(h('option', { value: '', text: c ? 'اختار الميعاد' : 'اختار السنتر الأول' }), ...(c ? c.schedules : []).map(x => h('option', { value: x.id, selected: x.id === keep, text: x.label + (x.grade ? ' · ' + x.grade : '') }))); };
     fillSched(s.schedule);
     f.center.addEventListener('change', () => fillSched(''));
@@ -190,7 +242,7 @@
       alert(box, 'تم حفظ بيانات الطالب.', 'success');
       students();
     } }, icon('check'), 'حفظ');
-    const temp = confirmButton('كلمة مرور مؤقتة', 'outline', async btn => {
+    const temp = !can('students.password') ? null : confirmButton('كلمة مرور مؤقتة', 'outline', async btn => {
       busy(btn, true);
       const x = await call('admin.studentPassword', { id: s.id });
       busy(btn, false);
@@ -199,7 +251,7 @@
       const secret = h('div', { class: 'secret', text: x.password });
       $('#dlg-body').append(h('p', { class: 'alert', 'data-type': 'warn', text: 'ابعت كلمة المرور دي للطالب بنفسك. مش هتظهر تاني، والطالب اتخرج من كل أجهزته.' }), secret);
     });
-    const out = confirmButton('خروج من الأجهزة', 'outline', async btn => {
+    const out = !can('students.logout') ? null : confirmButton('خروج من الأجهزة', 'outline', async btn => {
       busy(btn, true);
       const x = await call('admin.studentLogout', { id: s.id });
       busy(btn, false);
@@ -212,13 +264,13 @@
       if (!x.ok) { alert(box, message(x.code)); return; }
       dlg.close(); students();
     }) : null;
-    const money = can('codes.manage') ? h('button', { class: 'btn outline', type: 'button', onclick: () => window.PanelCodes.money(s) }, icon('wallet'), 'المحفظة والمحتوى') : null;
+    const money = can('wallet.view') ? h('button', { class: 'btn outline', type: 'button', onclick: () => window.PanelCodes.money(s) }, icon('wallet'), 'المحفظة والمحتوى') : null;
     openDialog(s.name, body, [save, temp, out, money, h('span', { class: 'spacer' }), del].filter(Boolean));
     if (preset === 'reject') picks[0]?.box.focus();
   }
 
   async function stages() {
-    const r = await call('admin.stages');
+    const r = await get('stages', () => call('admin.stages'));
     if (!r.ok) return failed(r, stages);
     const list = r.stages.map(s => ({ name: s.name, description: s.description, symbol: s.symbol, number: s.number, element: s.element, active: s.active }));
     const box = h('div', { class: 'list' });
@@ -250,13 +302,14 @@
       busy(save, true);
       const x = await call('admin.stagesSave', { stages: clean });
       busy(save, false);
+      if (x.ok) put('stages', { ok: true, stages: x.stages });
       alert(msg, x.ok ? 'تم حفظ المراحل، وهتظهر في الصفحة الأولى وصفحة التسجيل.' : message(x.code), x.ok ? 'success' : 'error');
     } }, icon('check'), 'حفظ المراحل');
     setView(card('المراحل الدراسية', 'تظهر في الصفحة الأولى واختيار السنة وقت التسجيل.', [add, save], h('p', { class: 'alert', 'data-type': 'info', text: 'تغيير اسم مرحلة مش بيغيّر مرحلة الطلاب المسجلين قبل كده؛ عدّلهم من صفحة الطلاب لو محتاج.' }), msg, box));
   }
 
   async function notices() {
-    const r = await call('admin.notices');
+    const r = await get('notices', () => call('admin.notices'));
     if (!r.ok) return failed(r, notices);
     const grades = r.grades;
     const copy = n => ({ id: n.id, title: n.title, body: n.body, level: n.level, audience: n.audience, grades: n.grades.slice(), phones: n.phones.slice(), exclude: n.exclude.slice(), gender: n.gender, startsAt: n.startsAt, endsAt: n.endsAt, active: n.active });
@@ -286,6 +339,7 @@
       const x = await call('admin.noticesSave', { notices: next });
       if (!x.ok) { alert(msg, message(x.code)); return false; }
       list = x.notices.map(copy);
+      put('notices', { ok: true, notices: x.notices, grades });
       alert(msg, done, 'success');
       draw();
       return true;
@@ -342,7 +396,7 @@
   }
 
   async function security(data) {
-    const r = data && data.blocks ? data : await call('admin.blocks');
+    const r = data && data.blocks ? put('blocks', data) : await get('blocks', () => call('admin.blocks'));
     if (!r.ok) return failed(r, security);
     const REASON = { devtools: 'فتح أدوات المطور', source: 'عرض كود الصفحة', tamper: 'تلاعب بالصفحة', attack: 'طلبات هجوم على الخادم' };
     const msg = note();
@@ -356,59 +410,91 @@
       b.active ? date(b.expiresAt, true) : tone('انتهى', 'ok'),
       b.active ? confirmButton('رفع الحظر', 'outline small', async btn => { busy(btn, true); const x = await call('admin.unblock', { id: b.id }); busy(btn, false); if (!x.ok) { alert(msg, message(x.code)); return; } security(x); }) : ''
     ]);
-    setView(card('الحماية', `${active} حظر ساري · حظر الأجهزة ${r.hours} ساعة`, h('button', { class: 'btn outline small', type: 'button', onclick: () => { loading(); security(); } }, icon('refresh'), 'تحديث'),
+    setView(card('الحماية', `${active} حظر ساري · حظر الأجهزة ${r.hours} ساعة`, null,
       h('p', { class: 'alert', 'data-type': 'info', text: 'المنصة بتحظر الجهاز اللي يحاول يفتح أدوات المطور أو يشوف كود الصفحة، وبتحظر عنوان الـ IP لمدة ساعة لو الخادم رصد طلبات هجوم. عناوين الـ IP في مصر ممكن تكون مشتركة بين ناس كتير، علشان كده حظرها قصير. مدة حظر الأجهزة بتتغير من إعدادات الموقع.' }),
       msg, grid(['المحظور', 'السبب', 'التفاصيل', 'المرات', 'البداية', 'النهاية', ''], rows, 'مفيش أي حظر لحد دلوقتي.')));
   }
 
+  const digits = v => v.replace(/[\u0660-\u0669]/g, d => String(d.charCodeAt(0) - 0x660));
+  const phoneList = v => [...new Set(digits(v).split(/[\s,،]+/).filter(Boolean))];
+  const PHONE = /^01[0125][0-9]{8}$/;
   async function settings() {
-    const r = await call('admin.settings');
+    const r = await get('settings', () => call('admin.settings'));
     if (!r.ok) return failed(r, settings);
     const s = r.settings;
     const reg = check('التسجيل مفتوح للطلاب الجدد', s.registration_open === 'true');
     const maint = check('وضع الصيانة: إيقاف دخول الطلاب مؤقتًا', s.maintenance === 'true');
     const mm = h('textarea', { maxlength: 300, value: s.maintenance_message });
     const ann = h('textarea', { maxlength: 300, value: s.announcement });
-    const phones = h('textarea', { rows: 3, dir: 'ltr', value: String(s.support_phones || '').split(/\s+/).filter(Boolean).join('\n'), placeholder: '01xxxxxxxxx' });
     const hours = h('input', { type: 'number', min: 1, max: 720, dir: 'ltr', value: s.block_hours || '24' });
-    const teacher = h('input', { dir: 'ltr', inputmode: 'numeric', maxlength: 11, value: s.teacher_phone || '', placeholder: '01xxxxxxxxx' });
-    const subject = h('textarea', { rows: 2, dir: 'ltr', value: String(s.subject_phones || '').split(/\s+/).filter(Boolean).join('\n'), placeholder: '01xxxxxxxxx' });
-    const about = h('textarea', { rows: 5, maxlength: 1500, value: s.about || '', placeholder: 'نبذة عن المنصة والمستر تظهر في صفحة «عن المنصة». سيبها فاضية للنص الافتراضي.' });
+    const msg = note();
+    const save = h('button', { class: 'btn primary', type: 'button', onclick: async () => {
+      const h2 = Number(hours.value);
+      if (!Number.isInteger(h2) || h2 < 1 || h2 > 720) { alert(msg, 'مدة الحظر من ساعة لـ 720 ساعة.'); return; }
+      busy(save, true);
+      const x = await call('admin.settingsSave', { settings: { registration_open: reg.box.checked, maintenance: maint.box.checked, maintenance_message: mm.value.trim(), announcement: ann.value.trim(), block_hours: h2 } });
+      busy(save, false);
+      if (x.ok) put('settings', { ok: true, settings: x.settings });
+      alert(msg, x.ok ? 'تم حفظ الإعدادات وتطبيقها على الموقع.' : message(x.code), x.ok ? 'success' : 'error');
+    } }, icon('check'), 'حفظ الإعدادات');
+    setView(card('إعدادات الموقع', 'التغييرات بتتطبق على الموقع خلال ثواني.', save, msg,
+      h('div', { class: 'list' }, reg.el, maint.el),
+      h('div', { class: 'form-grid' }, field('رسالة الصيانة', mm, 'تظهر في صفحة الصيانة. وقت الصيانة محدش من الطلاب يقدر يفتح المنصة.', true), field('إعلان عام', ann, 'يظهر أعلى الصفحة الأولى وفي الرئيسية للطلاب. سيبه فاضي لإخفائه.', true), field('مدة حظر الجهاز (بالساعات)', hours, 'لما طالب يحاول يفتح أدوات المطور أو كود الصفحة.'))),
+      can('contacts.edit') ? h('p', { class: 'alert', 'data-type': 'info' }, 'أرقام المستر والدعم العلمي ودعم المنصة اتنقلت لصفحة ', h('a', { href: '#contacts', class: 'link-btn' }, 'أرقام التواصل'), '.') : null);
+  }
+
+  async function contacts() {
+    const r = await get('settings', () => call('admin.settings'));
+    if (!r.ok) return failed(r, contacts);
+    const s = r.settings;
+    const lines = v => String(v || '').split(/\s+/).filter(Boolean).join('\n');
+    const teacher = h('input', { dir: 'ltr', inputmode: 'numeric', maxlength: 11, value: s.teacher_phone || '', placeholder: '01xxxxxxxxx', autocomplete: 'off' });
+    const subject = h('textarea', { rows: 3, dir: 'ltr', value: lines(s.subject_phones), placeholder: '01xxxxxxxxx' });
+    const support = h('textarea', { rows: 3, dir: 'ltr', value: lines(s.support_phones), placeholder: '01xxxxxxxxx' });
+    const about = h('textarea', { rows: 6, maxlength: 1500, value: s.about || '', placeholder: 'اكتب نبذة عن المستر والمنصة. كل فقرة في سطر لوحدها. سيبها فاضية للنص الافتراضي.' });
     let socialsNow = {};
     try { socialsNow = JSON.parse(s.socials || '{}') || {}; } catch { socialsNow = {}; }
     const SOC = [['facebook', 'فيسبوك'], ['youtube', 'يوتيوب'], ['instagram', 'إنستجرام'], ['tiktok', 'تيك توك'], ['telegram', 'تيليجرام'], ['whatsapp', 'قناة واتساب']];
     const socials = SOC.map(([k, label]) => ({ k, label, input: h('input', { type: 'url', dir: 'ltr', maxlength: 200, value: socialsNow[k] || '', placeholder: 'https://' }) }));
     const msg = note();
+    const preview = h('div', { class: 'contact-preview' });
+    function drawPreview() {
+      const row = (title, list, tone2) => h('div', { class: 'contact-chip', 'data-tone': tone2 }, h('b', { text: title }), list.length ? h('span', { class: 'num', text: list.join(' · ') }) : h('span', { class: 'muted', text: 'مش ظاهر للطلاب' }));
+      preview.replaceChildren(row('مستر إسلام', phoneList(teacher.value).slice(0, 1), 'violet'), row('الدعم العلمي', phoneList(subject.value), 'ok'), row('دعم المنصة', phoneList(support.value), 'accent'));
+    }
+    [teacher, subject, support].forEach(x => x.addEventListener('input', drawPreview));
+    drawPreview();
     const save = h('button', { class: 'btn primary', type: 'button', onclick: async () => {
-      const digits = v => v.replace(/[\u0660-\u0669]/g, d => String(d.charCodeAt(0) - 0x660));
-      const list = [...new Set(digits(phones.value).split(/[\s,،]+/).filter(Boolean))];
-      if (list.length > 5 || list.some(p => !/^01[0125][0-9]{8}$/.test(p))) { alert(msg, 'أرقام الدعم لحد 5 أرقام، وكل رقم موبايل مصري صحيح في سطر لوحده.'); return; }
-      const subj = [...new Set(digits(subject.value).split(/[\s,،]+/).filter(Boolean))];
-      if (subj.length > 5 || subj.some(p => !/^01[0125][0-9]{8}$/.test(p))) { alert(msg, 'أرقام دعم المادة لحد 5 أرقام صحيحة.'); return; }
       const tp = digits(teacher.value.trim());
-      if (tp && !/^01[0125][0-9]{8}$/.test(tp)) { alert(msg, 'رقم المستر مش رقم موبايل مصري صحيح.'); return; }
+      if (tp && !PHONE.test(tp)) { alert(msg, 'رقم المستر مش رقم موبايل مصري صحيح.'); teacher.focus(); return; }
+      const subj = phoneList(subject.value), sup = phoneList(support.value);
+      const bad = [...subj, ...sup].find(p => !PHONE.test(p));
+      if (bad) { alert(msg, `الرقم ${bad} مش رقم موبايل مصري صحيح.`); return; }
+      if (subj.length > 5 || sup.length > 5) { alert(msg, 'لحد 5 أرقام في كل نوع.'); return; }
       const soc = {};
       for (const x of socials) { const v = x.input.value.trim(); if (v && !/^https:\/\//.test(v)) { alert(msg, `رابط ${x.label} لازم يبدأ بـ https://`); return; } soc[x.k] = v; }
-      const h2 = Number(hours.value);
-      if (!Number.isInteger(h2) || h2 < 1 || h2 > 720) { alert(msg, 'مدة الحظر من ساعة لـ 720 ساعة.'); return; }
       busy(save, true);
-      const x = await call('admin.settingsSave', { settings: { registration_open: reg.box.checked, maintenance: maint.box.checked, maintenance_message: mm.value.trim(), announcement: ann.value.trim(), support_phones: list, block_hours: h2, teacher_phone: tp, subject_phones: subj, socials: soc, about: about.value.trim() } });
+      const x = await call('admin.settingsSave', { settings: { teacher_phone: tp, subject_phones: subj, support_phones: sup, socials: soc, about: about.value.trim() } });
       busy(save, false);
-      alert(msg, x.ok ? 'تم حفظ الإعدادات وتطبيقها على الموقع.' : message(x.code), x.ok ? 'success' : 'error');
-    } }, icon('check'), 'حفظ الإعدادات');
-    setView(card('إعدادات الموقع', 'التغييرات بتتطبق فورًا على الموقع.', save, msg,
-      h('div', { class: 'list' }, reg.el, maint.el),
-      h('div', { class: 'form-grid' }, field('رسالة الصيانة', mm, 'تظهر في صفحة الصيانة. وقت الصيانة محدش من الطلاب يقدر يفتح المنصة.', true), field('إعلان عام', ann, 'يظهر أعلى الصفحة الأولى وفي الرئيسية للطلاب. سيبه فاضي لإخفائه.', true), field('أرقام دعم المنصة', phones, 'لحد 5 أرقام، كل رقم في سطر. بتظهر للطلاب في «نسيت كلمة المرور» كزر واتساب، وهي مختلفة عن رقم المستر.', true), field('مدة حظر الجهاز (بالساعات)', hours, 'لما طالب يحاول يفتح أدوات المطور أو كود الصفحة.')),
-      h('h3', { class: 'sub-head', text: 'صفحة «تواصل معانا» و«عن المنصة»' }),
-      h('div', { class: 'form-grid' }, field('رقم مستر إسلام', teacher, 'اختياري. بيظهر في صفحة التواصل.'), field('أرقام دعم المادة العلمية', subject, 'لحد 5 أرقام، كل رقم في سطر.'), ...socials.map(x => field(x.label, x.input)), field('نبذة عن المنصة', about, 'لحد 1500 حرف.', true))));
+      if (x.ok) put('settings', { ok: true, settings: x.settings });
+      alert(msg, x.ok ? 'اتحفظت الأرقام، وهتظهر للطلاب في صفحة «تواصل معانا» ونسيت كلمة المرور خلال ثواني.' : message(x.code), x.ok ? 'success' : 'error');
+    } }, icon('check'), 'حفظ');
+    setView(
+      card('أرقام التواصل', 'الأرقام دي بتظهر للطلاب كزر واتساب واتصال.', save, msg, preview,
+        h('div', { class: 'form-grid' },
+          field('رقم مستر إسلام', teacher, 'رقم واحد. سيبه فاضي لو مش عايز يظهر.'),
+          field('أرقام الدعم العلمي', subject, 'لأسئلة الكيمياء والمادة. لحد 5 أرقام، كل رقم في سطر.'),
+          field('أرقام دعم المنصة', support, 'لمشاكل الحساب والدخول والدفع. بتظهر كمان في «نسيت كلمة المرور». لحد 5 أرقام.', true))),
+      card('صفحة «عن المنصة» والسوشيال', 'بتظهر في صفحة «عن المنصة» وفي آخر كل صفحة.', null,
+        h('div', { class: 'form-grid' }, field('نبذة عن المستر والمنصة', about, 'لحد 1500 حرف. كل فقرة في سطر.', true), ...socials.map(x => field(x.label, x.input)))));
   }
 
   async function staff(data) {
-    const r = data && data.staff ? data : await call('admin.staff');
+    const r = data && data.staff ? put('staff', data) : await get('staff', () => call('admin.staff'));
     if (!r.ok) return failed(r, staff);
-    const rows = r.staff.map(a => [h('div', {}, h('b', { text: a.name }), h('div', { class: 'num muted', text: a.username })), h('span', { class: 'role', 'data-role': a.role, text: ROLE_LABELS[a.role] }), pill(a.status), h('small', { text: a.permissions.length ? a.permissions.map(p => PERM_LABELS[p]).join('، ') : 'بدون صلاحيات' }), date(a.lastLogin, true), a.createdByName || '—', h('button', { class: 'btn outline small', type: 'button', onclick: () => staffDialog(a, r) }, icon('edit'), 'تعديل')]);
+    const rows = r.staff.map(a => [h('div', {}, h('b', { text: a.name }), h('div', { class: 'num muted', text: a.username })), h('span', { class: 'role', 'data-role': a.role, text: ROLE_LABELS[a.role] }), pill(a.status), h('small', { text: a.permissions.length ? a.permissions.length + ' صلاحية: ' + a.permissions.slice(0, 4).map(p => PERM_LABELS[p] || p).join('، ') + (a.permissions.length > 4 ? '…' : '') : 'بدون صلاحيات' }), date(a.lastLogin, true), a.createdByName || '—', h('button', { class: 'btn outline small', type: 'button', onclick: () => staffDialog(a, r) }, icon('edit'), 'تعديل')]);
     const add = r.roles.length ? h('button', { class: 'btn primary', type: 'button', onclick: () => staffDialog(null, r) }, icon('plus'), 'حساب جديد') : null;
-    const sub = me.role === 'developer' ? 'المطور يقدر ينشئ ملاك وموظفين ويدي أي صلاحية.' : 'تقدر تنشئ موظفين وتديهم من صلاحياتك بس.';
+    const sub = me.role === 'developer' ? 'المطور بيملك كل الصلاحيات، وبيقدر ينشئ ملاك وموظفين ويدي أي صلاحية.' : 'تقدر تنشئ موظفين وتديهم من صلاحياتك بس، وبتشوف الحسابات اللي أنت عملتها.';
     setView(card('الحسابات والصلاحيات', sub, add, grid(['الحساب', 'الدور', 'الحالة', 'الصلاحيات', 'آخر دخول', 'أنشأه', ''], rows, 'لسه مفيش حسابات.')));
   }
   function staffDialog(a, r) {
@@ -420,10 +506,22 @@
       status: select([['active', 'نشط'], ['disabled', 'موقوف']], a ? a.status : 'active'),
       password: h('input', { type: 'password', dir: 'ltr', maxlength: 64, autocomplete: 'new-password' })
     };
-    const perms = r.grantable.map(p => ({ p, ...check(PERM_LABELS[p], a ? a.permissions.includes(p) : false) }));
-    const sync = () => perms.forEach(x => { if (x.p !== 'staff.manage') return; const off = f.role.value === 'staff'; x.box.disabled = off; if (off) x.box.checked = false; x.el.classList.toggle('disabled', off); });
+    const perms = r.grantable.map(p => ({ p, ...check(PERM_LABELS[p] || p, a ? a.permissions.includes(p) : false) }));
+    const groups = (r.groups || [['all', r.grantable]]).map(([g, list]) => ({ g, items: perms.filter(x => list.includes(x.p)) })).filter(x => x.items.length);
+    const counter = h('span', { class: 'muted' });
+    const groupBoxes = groups.map(gr => {
+      const all = h('input', { type: 'checkbox', 'aria-label': 'كل صلاحيات ' + (GROUP_LABELS[gr.g] || gr.g) });
+      const count = h('small', { class: 'muted' });
+      const refresh = () => { const on = gr.items.filter(x => x.box.checked && !x.box.disabled).length, total = gr.items.filter(x => !x.box.disabled).length; all.checked = total > 0 && on === total; all.indeterminate = on > 0 && on < total; count.textContent = on + ' / ' + total; counter.textContent = perms.filter(x => x.box.checked).length + ' صلاحية مختارة'; };
+      all.addEventListener('change', () => { gr.items.forEach(x => { if (!x.box.disabled) x.box.checked = all.checked; }); refresh(); });
+      gr.items.forEach(x => x.box.addEventListener('change', refresh));
+      gr.refresh = refresh;
+      return h('fieldset', { class: 'perm-group' }, h('legend', {}, h('label', { class: 'check' }, all, GROUP_LABELS[gr.g] || gr.g), count), h('div', { class: 'perm-grid' }, gr.items.map(x => x.el)));
+    });
+    const sync = () => { perms.forEach(x => { if (x.p !== 'staff.manage') return; const off = f.role.value === 'staff'; x.box.disabled = off; if (off) x.box.checked = false; x.el.classList.toggle('disabled', off); }); groups.forEach(g => g.refresh()); };
     f.role.addEventListener('change', sync); sync();
-    const body = [h('div', { class: 'form-grid' }, field('الاسم', f.name), field('اسم المستخدم', f.username, 'حروف إنجليزي صغيرة وأرقام و . و _'), field('الدور', f.role), field('الحالة', f.status), field(a ? 'كلمة مرور جديدة' : 'كلمة المرور', f.password, a ? 'سيبها فاضية لو مش عايز تغيّرها.' : '6 حروف على الأقل.', true)), h('div', { class: 'field' }, h('span', { class: 'label', text: 'الصلاحيات' }), h('div', { class: 'perm-grid' }, perms.map(x => x.el)), h('span', { class: 'hint', text: 'إدارة الحسابات للمالك بس. الموظف مش بيقدر ينشئ حسابات.' })), box];
+    const roleHint = me.role === 'developer' ? 'المالك بيقدر ينشئ موظفين ويديهم من صلاحياته بس. الموظف مش بينشئ حسابات.' : 'الموظف بياخد من صلاحياتك بس، ومش بيقدر ينشئ حسابات.';
+    const body = [h('div', { class: 'form-grid' }, field('الاسم', f.name), field('اسم المستخدم', f.username, 'حروف إنجليزي صغيرة وأرقام و . و _'), field('الدور', f.role, roleHint), field('الحالة', f.status), field(a ? 'كلمة مرور جديدة' : 'كلمة المرور', f.password, a ? 'سيبها فاضية لو مش عايز تغيّرها.' : '6 حروف على الأقل.', true)), h('div', { class: 'field' }, h('div', { class: 'perm-head' }, h('span', { class: 'label', text: 'الصلاحيات' }), counter), h('div', { class: 'perm-groups' }, groupBoxes)), box];
     const save = h('button', { class: 'btn primary', type: 'button', onclick: async () => {
       const payload = { id: a ? a.id : '', name: f.name.value.trim(), username: f.username.value.trim().toLowerCase(), role: f.role.value, status: f.status.value, password: f.password.value, permissions: perms.filter(x => x.box.checked).map(x => x.p) };
       if (payload.name.length < 2 || !/^[a-z0-9_.]{3,32}$/.test(payload.username)) { alert(box, 'اكتب اسم واسم مستخدم صحيح.'); return; }
@@ -445,14 +543,16 @@
   }
 
   async function audit() {
-    const r = await call('admin.audit', { offset: auditOffset });
+    const r = await get('audit:' + auditOffset, () => call('admin.audit', { offset: auditOffset }));
     if (!r.ok) return failed(r, audit);
     const rows = r.entries.map(e => [h('span', { class: 'num', text: date(e.time, true) }), h('div', {}, h('b', { text: e.actor }), ' ', h('span', { class: 'role', 'data-role': e.role, text: ROLE_LABELS[e.role] || e.role })), actionLabel(e.action), e.target || '—', h('small', { text: e.detail || '' }), num(e.ip || '—')]);
-    setView(card('سجل العمليات', `${r.total} عملية مسجلة. أي تعديل في اللوحة بيتسجل هنا باسم صاحبه.`, h('button', { class: 'btn outline small', type: 'button', onclick: () => { loading(); audit(); } }, icon('refresh'), 'تحديث'), grid(['الوقت', 'الحساب', 'العملية', 'على', 'تفاصيل', 'IP'], rows, 'لسه مفيش عمليات.'), pager(r.total, r.offset, 100, o => { auditOffset = o; loading(); audit(); })));
+    const msg = note();
+    const clear = can('audit.clear') ? confirmButton('مسح السجل', 'danger small', async btn => { busy(btn, true); const x = await call('admin.auditClear'); busy(btn, false); if (!x.ok) { alert(msg, message(x.code)); return; } auditOffset = 0; drop('audit'); audit(); }) : null;
+    setView(card('سجل العمليات', `${r.total} عملية · بيتمسح تلقائي اللي أقدم من 72 ساعة. أي تعديل في اللوحة بيتسجل هنا باسم صاحبه.`, clear, msg, grid(['الوقت', 'الحساب', 'العملية', 'على', 'تفاصيل', 'IP'], rows, 'لسه مفيش عمليات.'), pager(r.total, r.offset, 100, o => { auditOffset = o; loading(); audit(); })));
   }
 
   async function system() {
-    const r = await call('admin.health');
+    const r = await get('health', () => call('admin.health'));
     if (!r.ok) return failed(r, system);
     const w = r.worker || {}, s = r.script || {};
     const yes = (v, a = 'موجود', b = 'ناقص') => tone(v ? a : b, v ? 'ok' : 'bad');
@@ -492,10 +592,10 @@
     setView(
       warn.length ? h('div', { class: 'list' }, warn.map(t => h('p', { class: 'alert', 'data-type': 'warn', text: t }))) : h('p', { class: 'alert', 'data-type': 'success', text: 'كل الفحوصات الأساسية سليمة.' }),
       h('div', { class: 'grid-2' },
-        card('Cloudflare Worker', 'السيرفر اللي بيستقبل طلبات الموقع واللوحة.', h('button', { class: 'btn outline small', type: 'button', onclick: () => { loading(); system(); } }, icon('refresh'), 'إعادة الفحص'),
+        card('Cloudflare Worker', 'السيرفر اللي بيستقبل طلبات الموقع واللوحة.', null,
           kv([['الإصدار', num(w.version)], ['زمن الرد من الشيت', num((w.ms ?? '—') + ' ms')], ['مركز البيانات', num(w.colo || '—')], ['SEC', yes(w.env?.SEC)], ['SCRIPT_URL', yes(w.env?.SCRIPT_URL)], ['SITE_URL', yes(w.env?.SITE_URL)], ['روابط الموقع ALLOW', h('small', { class: 'num', text: (w.origins?.site || []).join(' · ') || '—' })], ['روابط اللوحة PANEL', h('small', { class: 'num', text: (w.origins?.panel || []).join(' · ') || '—' })]])),
         card('Google Apps Script', 'قاعدة البيانات على Google Sheets.', null,
-          kv([['الإصدار', num(s.version)], ['الشيت', s.spreadsheet || '—'], ['المنطقة الزمنية', num(s.timezone)], ['وقت الخادم', date(s.time, true)], ['SEC', yes(s.properties?.SEC)], ['IMG-API', yes(s.properties?.IMG_API)], ['OTP-API-1', yes(s.properties?.OTP_API)], ['OTP-FROM', yes(s.properties?.OTP_FROM)], ['حساب المطور', yes(s.developer)], ['جلسات طلاب منتهية', num(s.expiredSessions)], ['جلسات لوحة منتهية', num(s.expiredStaffSessions)], ['زمن التنفيذ', num(s.ms + ' ms')]]))),
+          kv([['الإصدار', num(s.version)], ['الشيت', s.spreadsheet || '—'], ['المنطقة الزمنية', num(s.timezone)], ['وقت الخادم', date(s.time, true)], ['SEC', yes(s.properties?.SEC)], ['IMG-API', yes(s.properties?.IMG_API)], ['OTP-API-1', yes(s.properties?.OTP_API)], ['OTP-FROM', yes(s.properties?.OTP_FROM)], ['مفاتيح Drive', yes(s.properties?.DRIVE_EMAIL && s.properties?.DRIVE_KEY, s.properties?.DRIVE_JSON ? 'من ملف JSON' : 'موجودة')], ['فولدر Drive', yes(s.properties?.DRIVE_FOLDER)], ['حساب المطور', yes(s.developer)], ['جلسات طلاب منتهية', num(s.expiredSessions)], ['جلسات لوحة منتهية', num(s.expiredStaffSessions)], ['زمن التنفيذ', num(s.ms + ' ms')]]))),
       card('أوراق الشيت', (s.extra || []).length ? 'أوراق إضافية مش مستخدمة: ' + s.extra.join('، ') : 'كل الأوراق المطلوبة وأعمدتها.', null, sheets),
       card('ملفات الموقع', 'بيفحص كل ملف في files.json على رابط الموقع المنشور.', filesBtn, filesBox),
       can('system.run') ? card('تشغيل الدوال', 'دوال صيانة آمنة على الشيت. كل تشغيل بيتسجل في السجل.', null, fnBox, h('div', { class: 'list' }, fnRows)) : null
@@ -539,5 +639,8 @@
     $('#nav').replaceChildren(...SECTIONS.filter(s => can(s.perm)).map(s => h('a', { href: '#' + s.id, 'data-id': s.id }, icon(s.icon), s.title)));
     window.addEventListener('hashchange', route);
     route();
+    const queue = SECTIONS.filter(s => s.prefetch && can(s.perm) && s !== current);
+    const worker = async () => { while (queue.length) { const s = queue.shift(); try { await s.prefetch(); } catch {} } };
+    setTimeout(() => { worker(); worker(); worker(); }, 300);
   })();
 })();

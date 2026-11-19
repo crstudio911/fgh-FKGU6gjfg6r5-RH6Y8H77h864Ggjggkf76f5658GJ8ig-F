@@ -12,8 +12,10 @@ window.PanelCodes = (() => {
   }
   const stamp = () => new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
   const state = { q: '', offset: 0 };
+  const codesKey = () => 'codes:' + JSON.stringify([state.q, state.offset]);
+  const prefetch = () => K.get(codesKey(), () => call('admin.codes', { q: state.q, offset: state.offset }));
   async function codes() {
-    const r = await call('admin.codes', { q: state.q, offset: state.offset });
+    const r = await prefetch();
     if (!r.ok) return failed(r, codes);
     const msg = note('success');
     const q = h('input', { type: 'search', value: state.q, placeholder: 'رقم الدفعة أو آخر 4 حروف أو الملاحظة', maxlength: 60 });
@@ -25,9 +27,9 @@ window.PanelCodes = (() => {
       c.expiresAt ? date(c.expiresAt, true) : '—',
       !c.active ? tone('موقوف', 'bad') : c.uses >= c.maxUses ? tone('مستخدم', 'warn') : c.expiresAt && Date.parse(c.expiresAt) < Date.now() ? tone('منتهي', 'warn') : tone('شغال', 'ok'),
       h('small', { text: date(c.createdAt) + ' · ' + c.createdBy }),
-      h('button', { class: 'btn outline small', type: 'button', onclick: async e => { busy(e.currentTarget, true); const x = await call('admin.codeToggle', { id: c.id, active: !c.active, q: state.q }); if (!x.ok) { busy(e.currentTarget, false); alert(msg, message(x.code), 'error'); return; } codes(); } }, c.active ? 'إيقاف' : 'تفعيل')
+      K.can('codes.manage') ? h('button', { class: 'btn outline small', type: 'button', onclick: async e => { busy(e.currentTarget, true); const x = await call('admin.codeToggle', { id: c.id, active: !c.active, q: state.q }); if (!x.ok) { busy(e.currentTarget, false); alert(msg, message(x.code), 'error'); return; } codes(); } }, c.active ? 'إيقاف' : 'تفعيل') : ''
     ]);
-    const create = h('button', { class: 'btn primary', type: 'button', onclick: () => createDialog(r) }, icon('plus'), 'أكواد جديدة');
+    const create = K.can('codes.create') ? h('button', { class: 'btn primary', type: 'button', onclick: () => createDialog(r) }, icon('plus'), 'أكواد جديدة') : null;
     setView(card('الأكواد', `${r.total} كود. الكود بيظهر كامل مرة واحدة بس وقت إنشائه، فحمّله أو انسخه ساعتها.`, create,
       h('ol', { class: 'steps-guide' }, h('li', { text: 'كود شحن: بيضيف رصيد لمحفظة الطالب، وبيشتري بيه أي محاضرة أو دورة مدفوعة.' }), h('li', { text: 'كود مخصوص: بيفتح دورات أو محاضرات محددة مباشرة، وممكن يفتح أكتر من حاجة مرة واحدة.' })),
       msg, search, grid(['الكود', 'النوع', 'الاستخدام', 'ينتهي', 'الحالة', 'اتعمل', ''], rows, 'لسه مفيش أكواد.'), pager(r.total, r.offset, 100, o => { state.offset = o; K.loading(); codes(); })));
@@ -57,6 +59,7 @@ window.PanelCodes = (() => {
       const x = await call('admin.codesCreate', payload);
       busy(go, false);
       if (!x.ok) { alert(box, message(x.code)); return; }
+      K.drop('codes');
       showCodes(x, payload);
     } }, icon('ticket'), 'إنشاء الأكواد');
     openDialog('أكواد جديدة', [h('div', { class: 'form-grid' }, field('نوع الكود', kind), amountBox, targetBox, field('عدد الأكواد', count, 'لحد 200 في المرة.'), field('كل كود يتستخدم كام مرة', uses, 'كل طالب يستخدم الكود مرة واحدة بس.'), field('ينتهي في', expires, 'اختياري'), field('ملاحظة', memo, 'تساعدك تعرف الدفعة دي بعدين.')), box], [go, h('button', { class: 'btn outline', type: 'button', onclick: () => dlg.close() }, 'إلغاء')]);
@@ -79,18 +82,21 @@ window.PanelCodes = (() => {
     ], [h('button', { class: 'btn outline', type: 'button', onclick: () => dlg.close() }, 'إغلاق')]);
   }
   const lq = { q: '', offset: 0 };
+  const prefetchLogs = () => K.get('events:' + JSON.stringify([lq.q, lq.offset]), () => call('admin.events', lq));
   async function logs() {
-    const r = await call('admin.events', lq);
+    const r = await prefetchLogs();
     if (!r.ok) return failed(r, logs);
     const msg = note('success');
     const q = h('input', { type: 'search', value: lq.q, placeholder: 'IP أو رقم أو عملية', maxlength: 60, dir: 'auto' });
     const search = h('form', { class: 'toolbar', role: 'search', onsubmit: e => { e.preventDefault(); lq.q = q.value.trim(); lq.offset = 0; K.loading(); logs(); } }, field('بحث', q), h('button', { class: 'btn outline', type: 'submit' }, icon('search'), 'بحث'));
     const rows = r.events.map(e => { const res = RESULTS[e.result] || [e.result || '—', e.result === 'ok' ? 'ok' : 'warn']; return [h('span', { class: 'num', text: date(e.time, true) }), e.ip ? h('button', { class: 'link-btn num', type: 'button', onclick: () => { lq.q = e.ip; lq.offset = 0; K.loading(); logs(); } }, e.ip) : h('span', { class: 'muted', text: '—' }), h('span', { class: 'num muted', text: e.device || '—' }), e.phone ? h('span', { class: 'num', text: e.phone }) : '—', ACTIONS[e.action] || e.action, tone(res[0], res[1]), h('small', { text: e.detail || '' })]; });
-    const exp = h('button', { class: 'btn outline small', type: 'button', onclick: async () => { busy(exp, true); const x = await call('admin.eventsExport'); busy(exp, false); if (!x.ok) { alert(msg, message(x.code), 'error'); return; } download('security-log-' + stamp() + '.csv', csv([['الوقت', 'IP', 'الجهاز', 'الرقم', 'العملية', 'النتيجة', 'تفاصيل'], ...x.events.map(e => [e.time, e.ip, e.device, e.phone, ACTIONS[e.action] || e.action, (RESULTS[e.result] || [e.result])[0], e.detail])])); } }, icon('download'), 'تحميل السجل');
-    const clear = K.can('security.manage') ? confirmButton('مسح السجل', 'danger small', async btn => { busy(btn, true); const x = await call('admin.eventsClear'); busy(btn, false); if (!x.ok) { alert(msg, message(x.code), 'error'); return; } lq.offset = 0; await logs(); }) : null;
-    setView(card('سجل الأمان', `${r.total} عملية · بيتمسح تلقائي اللي أقدم من ${r.hours} ساعة`, [h('button', { class: 'btn outline small', type: 'button', onclick: () => { K.loading(); logs(); } }, icon('refresh'), 'تحديث'), exp, clear],
+    const exp = h('button', { class: 'btn outline small', type: 'button', onclick: async () => { busy(exp, true); const x = await call('admin.eventsExport'); busy(exp, false); if (!x.ok) { alert(msg, message(x.code), 'error'); return; } Xlsx.save('security-log-' + stamp(), [{ name: 'سجل الأمان', rows: [['الوقت', 'IP', 'الجهاز', 'الرقم', 'العملية', 'النتيجة', 'تفاصيل'], ...x.events.map(e => [e.time, e.ip, e.device, e.phone, ACTIONS[e.action] || e.action, (RESULTS[e.result] || [e.result])[0], e.detail])] }]); } }, icon('download'), 'تحميل Excel');
+    const clear = K.can('logs.clear') ? confirmButton('مسح السجل', 'danger small', async btn => { busy(btn, true); const x = await call('admin.eventsClear'); busy(btn, false); if (!x.ok) { alert(msg, message(x.code), 'error'); return; } lq.offset = 0; K.drop('events'); await logs(); }) : null;
+    setView(card('سجل الأمان', `${r.total} عملية · بيتمسح تلقائي اللي أقدم من ${r.hours} ساعة`, [exp, clear],
       h('p', { class: 'alert', 'data-type': 'info', text: 'كل عملية مهمة على المنصة بتتسجل هنا بعنوان الـ IP ومعرّف الجهاز. دوس على أي IP علشان تشوف كل اللي جه منه.' }),
       msg, search, grid(['الوقت', 'IP', 'الجهاز', 'الرقم', 'العملية', 'النتيجة', 'تفاصيل'], rows, 'السجل فاضي.'), pager(r.total, r.offset, 200, o => { lq.offset = o; K.loading(); logs(); })));
   }
-  return { codes, logs, money, csv };
+  Object.assign(ACTIONS, { quizStart: 'بدء واجب أو امتحان', quizSubmit: 'تسليم واجب أو امتحان' });
+  Object.assign(RESULTS, { quiz_done: ['اتسلم قبل كده', 'warn'], quiz_left: ['خرج من الامتحان', 'bad'], quiz_closed: ['الامتحان اتقفل', 'warn'], quiz_soon: ['لسه مبدأش', 'warn'], slow: ['طلبات كتير', 'bad'] });
+  return { codes, logs, money, csv, download, prefetch, prefetchLogs };
 })();

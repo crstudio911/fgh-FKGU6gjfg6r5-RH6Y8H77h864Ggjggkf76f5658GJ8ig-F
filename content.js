@@ -2,11 +2,12 @@ window.PanelContent = (() => {
   const K = window.Kit;
   const { h, icon, call, setView, failed, tone, note, card, field, select, check, grid, confirmButton, openDialog, dlg, busy, alert, message, date } = K;
   const AUD = { all: 'أونلاين وسنتر', online: 'أونلاين بس', center: 'السنتر بس' };
-  const MB = b => (b / 1048576).toFixed(b > 104857600 ? 0 : 1) + ' MB';
+  const MB = b => (b < 1048576 ? Math.max(1, Math.round(b / 1024)) + ' KB' : (b / 1048576).toFixed(b > 104857600 ? 0 : 1) + ' MB');
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   let data = null;
   const uploads = [];
-  async function load() { const r = await call('admin.content'); if (r.ok) data = r; return r; }
+  async function load(force) { const r = await K.get('content', () => call('admin.content'), force); if (r.ok) data = r; return r; }
+  const keep = x => { if (x && x.ok) { data = x; K.put('content', x); } return x; };
   function compress(file, max = 1400) {
     return new Promise((resolve, reject) => {
       const url = URL.createObjectURL(file);
@@ -72,7 +73,7 @@ window.PanelContent = (() => {
     box.prepend(q.row);
     uploads.push(file.name);
     window.onbeforeunload = () => 'uploading';
-    try { const f = await upload(file, kind, p => q.set(p)); q.ok(); await load(); if (after) after(f); return f; }
+    try { const f = await upload(file, kind, p => q.set(p)); q.ok(); await load(true); if (after) after(f); return f; }
     catch (e) { q.bad(e.message); return null; }
     finally { uploads.pop(); if (!uploads.length) window.onbeforeunload = null; }
   }
@@ -127,7 +128,7 @@ window.PanelContent = (() => {
       busy(up, true);
       const f = await runUpload(new File([built], title + '.pdf', { type: 'application/pdf' }), 'pdf', queue, onUploaded);
       busy(up, false);
-      if (f) { alert(box, 'اترفع الملف كـ PDF.', 'success'); list.splice(0).forEach(x => URL.revokeObjectURL(x.url)); draw(); if (back) back(f); }
+      if (f) { const blob = built; alert(box, 'اترفع الملف كـ PDF.', 'success'); list.splice(0).forEach(x => URL.revokeObjectURL(x.url)); draw(); if (back) back(f, blob); }
     } }, icon('upload'), 'ارفع الملف');
     openDialog('صور ← ملف PDF', [h('p', { class: 'alert', 'data-type': 'info', text: 'الصور هتتجمع بالترتيب ده في ملف PDF واحد على جهازك، وبعد ما تشوف المعاينة وتوافق بيترفع الملف بس.' }), field('اسم الملف', name), h('div', { class: 'toolbar' }, add, count), thumbs, prev, queue, box], [up, preview, h('span', { class: 'spacer' }), h('button', { class: 'btn outline', type: 'button', onclick: () => (back ? back(null) : dlg.close()) }, back ? 'رجوع' : 'إغلاق')]);
     draw();
@@ -154,7 +155,7 @@ window.PanelContent = (() => {
           h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'لأعلى', disabled: i === 0, onclick: e => order(e.currentTarget, i, -1) }, icon('up')),
           h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'لأسفل', disabled: i === data.courses.length - 1, onclick: e => order(e.currentTarget, i, 1) }, icon('down')),
           h('button', { class: 'btn outline small', type: 'button', onclick: () => courseDialog(c) }, icon('edit'), 'تعديل'),
-          confirmButton('حذف', 'danger small', async btn => { busy(btn, true); const x = await call('admin.courseDelete', { id: c.id }); busy(btn, false); if (!x.ok) { alert(msg, message(x.code), 'error'); return; } data = x; alert(msg, 'اتحذفت الدورة. المحاضرات اللي جواها لسه موجودة.', 'success'); drawAll(); })))));
+          confirmButton('حذف', 'danger small', async btn => { busy(btn, true); const x = await call('admin.courseDelete', { id: c.id }); busy(btn, false); if (!x.ok) { alert(msg, message(x.code), 'error'); return; } keep(x); alert(msg, 'اتحذفت الدورة. المحاضرات اللي جواها لسه موجودة.', 'success'); drawAll(); })))));
     }
     async function order(btn, i, d) {
       const ids = data.courses.map(c => c.id);
@@ -162,7 +163,7 @@ window.PanelContent = (() => {
       busy(btn, true);
       const x = await call('admin.coursesOrder', { ids });
       if (!x.ok) { busy(btn, false); alert(msg, message(x.code), 'error'); return; }
-      data = x; drawAll();
+      keep(x); drawAll();
     }
     function drawLectures() {
       const q = lq.value.trim();
@@ -171,10 +172,10 @@ window.PanelContent = (() => {
       lecBox.replaceChildren(...shown.map(l => {
         const inCourses = data.courses.filter(c => c.lectures.includes(l.id)).map(c => c.title);
         return h('div', { class: 'row-item course-row' },
-          h('div', { class: 'course-info' }, h('b', { text: l.title }), h('small', { class: 'muted', text: l.items.length ? l.items.map(x => (x.kind === 'video' ? 'فيديو: ' : 'PDF: ') + x.title).join(' · ') : 'لسه مفيهاش فيديو أو ملف' }), h('small', { text: inCourses.length ? 'في: ' + inCourses.join('، ') : 'مش مضافة لأي دورة' })),
+          h('div', { class: 'course-info' }, h('b', { text: l.title }), h('small', { class: 'muted', text: l.items.length ? l.items.map(x => ({ video: 'فيديو: ', pdf: 'PDF: ', homework: 'واجب: ', exam: 'امتحان: ' }[x.kind] || '') + x.title).join(' · ') : 'لسه مفيهاش محتوى' }), h('small', { text: inCourses.length ? 'في: ' + inCourses.join('، ') : 'مش مضافة لأي دورة' })),
           h('div', { class: 'actions' }, tone(l.price ? l.price + ' جنيه' : 'مجانية', l.price ? 'warn' : 'ok'), l.active ? null : tone('مخفية', 'bad'),
             h('button', { class: 'btn outline small', type: 'button', onclick: () => lectureDialog(l, () => { dlg.close(); drawAll(); }) }, icon('edit'), 'تعديل'),
-            confirmButton('حذف', 'danger small', async btn => { busy(btn, true); const x = await call('admin.lectureDelete', { id: l.id }); busy(btn, false); if (!x.ok) { alert(msg, message(x.code), 'error'); return; } data = x; alert(msg, 'اتحذفت المحاضرة من كل الدورات.', 'success'); drawAll(); })));
+            confirmButton('حذف', 'danger small', async btn => { busy(btn, true); const x = await call('admin.lectureDelete', { id: l.id }); busy(btn, false); if (!x.ok) { alert(msg, message(x.code), 'error'); return; } keep(x); alert(msg, 'اتحذفت المحاضرة من كل الدورات.', 'success'); drawAll(); })));
       }));
     }
     function drawAll() { drawCourses(); drawLectures(); }
@@ -238,7 +239,7 @@ window.PanelContent = (() => {
       const x = await call('admin.courseSave', { course: payload });
       busy(save, false);
       if (!x.ok) { alert(box, message(x.code)); return; }
-      data = x; dlg.close(); if (K._redraw) K._redraw();
+      keep(x); dlg.close(); if (K._redraw) K._redraw();
     } }, icon('check'), d.id ? 'حفظ الدورة' : 'إنشاء الدورة');
     openDialog(d.id ? 'تعديل الدورة' : 'دورة جديدة', [
       h('div', { class: 'form-grid' }, field('اسم الدورة', f.title, '', true), field('وصف', f.description, 'اختياري', true), h('div', { class: 'field wide' }, h('span', { class: 'label', text: 'صورة الدورة' }), img)),
@@ -256,8 +257,23 @@ window.PanelContent = (() => {
     const active = check('ظاهرة للطلاب', d.active);
     const items = h('div', { class: 'list' });
     const files = kind => data.files.filter(x => x.kind === kind);
+    const quizzes = kind => (data.assessments || []).filter(x => x.kind === kind);
+    const QUIZ = { homework: 'واجب', exam: 'امتحان' };
+    function quizRow(it, i) {
+      const title = h('input', { value: it.title, maxlength: 100, placeholder: it.kind === 'exam' ? 'مثال: امتحان الباب الأول' : 'مثال: واجب المحاضرة', 'aria-label': 'اسم العنصر' });
+      title.addEventListener('input', () => { it.title = title.value; });
+      const list = quizzes(it.kind);
+      const sel = h('select', { 'aria-label': QUIZ[it.kind] }, h('option', { value: '', text: list.length ? 'اختار ' + QUIZ[it.kind] + '…' : 'لسه مفيش، اعمل واحد جديد' }), ...list.map(x => h('option', { value: x.id, selected: x.id === it.file, text: x.title + ' · ' + x.count + ' سؤال' + (x.minutes ? ' · ' + x.minutes + ' د' : '') + (x.active ? '' : ' · مخفي') })));
+      sel.addEventListener('change', () => { it.file = sel.value; const q = list.find(x => x.id === sel.value); if (q && !it.title.trim()) { it.title = q.title; title.value = q.title; } });
+      const make = K.can('assess.edit') && window.PanelAssess ? h('button', { class: 'btn outline small', type: 'button', onclick: () => window.PanelAssess.editor(null, it.kind, async saved => { if (saved) { await load(true); it.file = saved.id; if (!it.title.trim()) it.title = saved.title; } reopen(); }) }, icon('plus'), 'جديد') : null;
+      return h('div', { class: 'item-row' }, h('span', { class: 'kind', 'data-kind': it.kind }, icon(it.kind === 'exam' ? 'timer' : 'clipboard')), title, sel, h('div', { class: 'actions' }, make,
+        h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'لأعلى', disabled: i === 0, onclick: () => { [d.items[i - 1], d.items[i]] = [d.items[i], d.items[i - 1]]; drawItems(); } }, icon('up')),
+        h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'لأسفل', disabled: i === d.items.length - 1, onclick: () => { [d.items[i + 1], d.items[i]] = [d.items[i], d.items[i + 1]]; drawItems(); } }, icon('down')),
+        h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'حذف العنصر', onclick: () => { d.items.splice(i, 1); drawItems(); } }, icon('trash'))));
+    }
     function drawItems() {
       items.replaceChildren(...(d.items.length ? d.items.map((it, i) => {
+        if (QUIZ[it.kind]) return quizRow(it, i);
         const title = h('input', { value: it.title, maxlength: 100, placeholder: it.kind === 'video' ? 'مثال: شرح المحاضرة' : 'مثال: الواجب', 'aria-label': 'اسم العنصر' });
         title.addEventListener('input', () => { it.title = title.value; });
         const sel = h('select', { 'aria-label': 'الملف' }, h('option', { value: '', text: files(it.kind).length ? 'اختار الملف…' : 'لسه مفيش ملفات، ارفع واحد' }), ...files(it.kind).map(x => h('option', { value: x.id, selected: x.id === it.file, text: x.name + ' · ' + MB(x.size) })));
@@ -269,26 +285,28 @@ window.PanelContent = (() => {
           h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'لأعلى', disabled: i === 0, onclick: () => { [d.items[i - 1], d.items[i]] = [d.items[i], d.items[i - 1]]; drawItems(); } }, icon('up')),
           h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'لأسفل', disabled: i === d.items.length - 1, onclick: () => { [d.items[i + 1], d.items[i]] = [d.items[i], d.items[i + 1]]; drawItems(); } }, icon('down')),
           h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'حذف العنصر', onclick: () => { d.items.splice(i, 1); drawItems(); } }, icon('trash'))));
-      }) : [h('p', { class: 'muted', text: 'ضيف فيديو أو PDF. مثال: فيديو الشرح، ثم ملزمة PDF، ثم فيديو حل الواجب.' })]));
+      }) : [h('p', { class: 'muted', text: 'ضيف فيديو أو PDF أو واجب أو امتحان. مثال: فيديو الشرح، ثم ملزمة PDF، ثم الواجب.' })]));
     }
     const addVideo = h('button', { class: 'btn outline', type: 'button', onclick: () => { if (d.items.length >= 20) return; d.items.push({ id: '', kind: 'video', title: '', file: '' }); drawItems(); } }, icon('video'), 'فيديو');
     const addPdf = h('button', { class: 'btn outline', type: 'button', onclick: () => { if (d.items.length >= 20) return; d.items.push({ id: '', kind: 'pdf', title: '', file: '' }); drawItems(); } }, icon('pdf'), 'PDF');
+    const addHw = h('button', { class: 'btn outline', type: 'button', onclick: () => { if (d.items.length >= 20) return; d.items.push({ id: '', kind: 'homework', title: '', file: '' }); drawItems(); } }, icon('clipboard'), 'واجب');
+    const addExam = h('button', { class: 'btn outline', type: 'button', onclick: () => { if (d.items.length >= 20) return; d.items.push({ id: '', kind: 'exam', title: '', file: '' }); drawItems(); } }, icon('timer'), 'امتحان');
     const save = h('button', { class: 'btn primary', type: 'button', onclick: async () => {
       d.title = f.title.value.trim(); d.description = f.description.value.trim(); d.price = Math.max(0, parseInt(f.price.value, 10) || 0); d.active = active.box.checked;
       if (d.title.length < 2) { alert(box, 'اكتب اسم المحاضرة.'); return; }
       const bad = d.items.findIndex(x => !x.file || !x.title.trim());
-      if (bad !== -1) { alert(box, `العنصر رقم ${bad + 1} محتاج اسم وملف.`); return; }
+      if (bad !== -1) { alert(box, `العنصر رقم ${bad + 1} محتاج اسم و${QUIZ[d.items[bad].kind] ? QUIZ[d.items[bad].kind] : 'ملف'}.`); return; }
       busy(save, true);
       const x = await call('admin.lectureSave', { lecture: { id: d.id, title: d.title, description: d.description, price: d.price, active: d.active, items: d.items.map(it => ({ id: it.id, kind: it.kind, title: it.title.trim(), file: it.file })) } });
       busy(save, false);
       if (!x.ok) { alert(box, message(x.code)); return; }
-      data = x;
+      keep(x);
       if (onSaved) onSaved(x.saved);
     } }, icon('check'), d.id ? 'حفظ المحاضرة' : 'إنشاء المحاضرة');
     function reopen() {
       openDialog(d.id ? 'تعديل المحاضرة' : 'محاضرة جديدة', [
         h('div', { class: 'form-grid' }, field('اسم المحاضرة', f.title, '', true), field('وصف', f.description, 'اختياري', true), field('السعر بالجنيه', f.price, '0 = مجانية. في الدورات المجانية المحاضرة بتبقى مجانية تلقائي.'), h('div', { class: 'field' }, h('span', { class: 'label', text: 'الحالة' }), active.el)),
-        h('div', { class: 'field' }, h('span', { class: 'label', text: 'محتوى المحاضرة بالترتيب' }), items, h('div', { class: 'toolbar' }, h('span', { class: 'muted', text: 'ضيف:' }), addVideo, addPdf)), queue, box
+        h('div', { class: 'field' }, h('span', { class: 'label', text: 'محتوى المحاضرة بالترتيب' }), items, h('div', { class: 'toolbar' }, h('span', { class: 'muted', text: 'ضيف:' }), addVideo, addPdf, addHw, addExam)), queue, box
       ], [save, h('button', { class: 'btn outline', type: 'button', onclick: () => (onBack ? onBack() : dlg.close()) }, onBack ? 'رجوع للدورة' : 'إلغاء')]);
       drawItems();
     }
@@ -296,11 +314,11 @@ window.PanelContent = (() => {
   }
   let mediaQueue = null;
   async function media() {
-    const r = await call('admin.media');
+    const r = await K.get('media', () => call('admin.media'));
     if (!r.ok) return failed(r, media);
-    if (data) data.files = r.files; else { const x = await load(); if (!x.ok) data = { files: r.files, courses: [], lectures: [], grades: [], centers: [] }; }
+    if (!data) { const x = await load(); if (!x.ok) data = { files: r.files, courses: [], lectures: [], grades: [], centers: [], assessments: [] }; }
     const used = {};
-    (data.lectures || []).forEach(l => l.items.forEach(x => { used[x.file] = (used[x.file] || 0) + 1; }));
+    r.files.forEach(f => { used[f.id] = f.used || 0; });
     const msg = note();
     const queue = mediaQueue || (mediaQueue = h('div', { class: 'list' }));
     const warn = [];
@@ -310,8 +328,8 @@ window.PanelContent = (() => {
     const tableBox = h('div');
     function draw() {
       const list = r.files.filter(f => !kind.value || f.kind === kind.value);
-      tableBox.replaceChildren(grid(['الملف', 'النوع', 'الحجم', 'مستخدم في', 'اترفع', ''], list.map(f => [h('b', { text: f.name }), tone(f.kind === 'video' ? 'فيديو' : 'PDF', f.kind === 'video' ? 'ok' : 'warn'), h('span', { class: 'num', text: MB(f.size) }), (used[f.id] || 0) + ' محاضرة', h('small', { text: date(f.createdAt, true) + (f.createdBy ? ' · ' + f.createdBy : '') }),
-        used[f.id] ? '' : confirmButton('حذف', 'danger small', async btn => { busy(btn, true); const x = await call('admin.fileDelete', { id: f.id }); busy(btn, false); if (!x.ok) { alert(msg, message(x.code)); return; } r.files = x.files; draw(); })]), 'لسه مفيش ملفات مرفوعة.'));
+      tableBox.replaceChildren(grid(['الملف', 'النوع', 'الحجم', 'مستخدم في', 'اترفع', ''], list.map(f => [h('b', { text: f.name }), tone(f.kind === 'video' ? 'فيديو' : 'PDF', f.kind === 'video' ? 'ok' : 'warn'), h('span', { class: 'num', text: MB(f.size) }), (used[f.id] || 0) ? used[f.id] + ' استخدام' : h('span', { class: 'muted', text: 'مش مستخدم' }), h('small', { text: date(f.createdAt, true) + (f.createdBy ? ' · ' + f.createdBy : '') }),
+        used[f.id] || !K.can('media.delete') ? '' : confirmButton('حذف', 'danger small', async btn => { busy(btn, true); const x = await call('admin.fileDelete', { id: f.id }); busy(btn, false); if (!x.ok) { alert(msg, message(x.code)); return; } r.files = x.files; K.put('media', { ...r, files: x.files }); draw(); })]), 'لسه مفيش ملفات مرفوعة.'));
     }
     kind.addEventListener('change', draw);
     draw();
@@ -319,13 +337,13 @@ window.PanelContent = (() => {
     const vBtn = h('button', { class: 'btn primary', type: 'button', onclick: () => picker('video/*', true, files => files.forEach(file => runUpload(file, 'video', queue, after))) }, icon('video'), 'رفع فيديو');
     const pBtn = h('button', { class: 'btn outline', type: 'button', onclick: () => picker('application/pdf', true, files => files.forEach(file => runUpload(file, 'pdf', queue, after))) }, icon('pdf'), 'رفع PDF');
     const iBtn = h('button', { class: 'btn outline', type: 'button', onclick: () => imagesDialog(() => { if (location.hash === '#media') media(); }, null) }, icon('image'), 'صور ← PDF');
-    setView(card('الفيديوهات والملفات', 'بتترفع على جوجل درايف بتاعك، والطالب بيشوفها من خلال الوركر بس.', [vBtn, pBtn, iBtn],
+    setView(card('الفيديوهات والملفات', 'بتترفع على جوجل درايف بتاعك، والطالب بيشوفها من خلال الوركر بس.', K.can('media.upload') ? [vBtn, pBtn, iBtn] : null,
       warn.length ? h('div', { class: 'list' }, warn.map(t => h('p', { class: 'alert', 'data-type': 'warn', text: t }))) : null,
       h('p', { class: 'alert', 'data-type': 'info', text: 'الفيديو بيترفع على أجزاء، فلو النت قطع بيكمل لوحده. سيب الصفحة مفتوحة لحد ما يخلص. بعد الرفع اختار الملف من جوه المحاضرة.' }),
       queue, msg, h('div', { class: 'toolbar' }, field('النوع', kind)), tableBox));
   }
   async function centers() {
-    const r = await call('admin.centers');
+    const r = await K.get('centers', () => call('admin.centers'));
     if (!r.ok) return failed(r, centers);
     const list = r.centers.map(c => ({ ...c, schedules: c.schedules.map(s => ({ ...s })) }));
     const msg = note();
@@ -357,11 +375,12 @@ window.PanelContent = (() => {
       const x = await call('admin.centersSave', { centers: list.map(c => ({ id: c.id, name: c.name.trim(), address: c.address.trim(), active: !!c.active, schedules: c.schedules.map(s => ({ id: s.id, grade: s.grade, label: s.label.trim() })) })) });
       busy(save, false);
       if (!x.ok) { alert(msg, message(x.code)); return; }
+      K.put('centers', x);
       alert(msg, 'اتحفظت السناتر، وهتظهر للطلاب في التسجيل.', 'success');
       list.splice(0, list.length, ...x.centers.map(c => ({ ...c, schedules: c.schedules.map(s => ({ ...s })) })));
       draw();
     } }, icon('check'), 'حفظ السناتر');
     setView(card('السناتر والمواعيد', 'الطالب اللي بيختار «سنتر» وقت التسجيل بيختار السنتر والميعاد من هنا. الميعاد ممكن يكون لمرحلة معينة أو لكل المراحل.', [add, save], msg, box));
   }
-  return { courses, media, centers, upload };
+  return { courses, media, centers, upload, runUpload, imagesDialog, picker, load: () => load(), MB };
 })();

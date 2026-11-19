@@ -45,23 +45,46 @@ const Panel = (() => {
     drive: 'جوجل درايف رفض العملية. جرّب تاني أو راجع إعدادات الفولدر.',
     upload_expired: 'جلسة الرفع انتهت. ابدأ رفع الملف من الأول.',
     upload: 'تعذر رفع الصورة. تأكد من IMG-API وجرّب تاني.',
+    exam_time: 'الامتحان لازم يكون له وقت (دقيقة على الأقل).',
+    questions: 'كل سؤال محتاج نص، واختيارين على الأقل، وإجابة صح.',
+    answers: 'حدد الإجابة الصح لكل صفحة.',
+    too_long: 'الأسئلة طويلة أوي. قسّمها على أكتر من واجب.',
+    slow: 'طلبات كتير ورا بعض. استنى دقيقة وحاول تاني.',
     server: 'حصلت مشكلة في الخادم. حاول تاني بعد شوية.'
   };
   const PERM_LABELS = {
-    'students.view': 'عرض الطلاب',
-    'students.edit': 'تعديل وتفعيل الطلاب',
+    'students.view': 'عرض الطلاب وبياناتهم',
+    'students.approve': 'تفعيل ورفض وإيقاف الطلاب',
+    'students.edit': 'تعديل بيانات الطلاب',
+    'students.password': 'كلمة مرور مؤقتة للطالب',
+    'students.logout': 'خروج الطالب من أجهزته',
     'students.delete': 'حذف الطلاب',
-    'content.edit': 'المراحل والدورات والمحاضرات والسناتر والإشعارات',
+    'stages.edit': 'المراحل الدراسية',
+    'courses.edit': 'الدورات والمحاضرات',
+    'centers.edit': 'السناتر والمواعيد',
+    'notices.edit': 'إشعارات الطلاب',
+    'assess.edit': 'إنشاء وتعديل الواجبات والامتحانات والإجابات',
+    'results.view': 'عرض الدرجات',
+    'results.manage': 'إعادة فتح الامتحان لطالب',
     'media.upload': 'رفع الفيديوهات والملفات',
-    'codes.manage': 'الأكواد ومحافظ الطلاب',
-    'logs.view': 'سجل الأمان',
-    'settings.edit': 'إعدادات الموقع',
-    'staff.manage': 'إدارة الحسابات',
+    'media.delete': 'حذف الملفات المرفوعة',
+    'codes.create': 'إنشاء الأكواد',
+    'codes.manage': 'إيقاف وتفعيل الأكواد',
+    'wallet.view': 'محافظ الطلاب ومشترياتهم',
+    'settings.edit': 'إعدادات الموقع والصيانة والتسجيل',
+    'contacts.edit': 'أرقام التواصل وصفحة «عن المنصة»',
+    'staff.manage': 'إنشاء وإدارة الحسابات',
     'security.manage': 'الحماية والحظر',
+    'logs.view': 'عرض سجل الأمان',
+    'logs.clear': 'مسح سجل الأمان',
+    'audit.view': 'عرض سجل العمليات',
+    'audit.clear': 'مسح سجل العمليات',
+    'data.view': 'عرض كل البيانات',
+    'data.export': 'تحميل كل البيانات',
     'system.view': 'كشف الخادم والملفات',
-    'system.run': 'تشغيل الدوال',
-    'audit.view': 'سجل العمليات'
+    'system.run': 'تشغيل دوال الصيانة'
   };
+  const GROUP_LABELS = { students: 'الطلاب', content: 'المحتوى', assess: 'الواجبات والامتحانات', media: 'الملفات', money: 'الأكواد والمحافظ', site: 'الموقع', team: 'الفريق', security: 'الأمان والسجلات', data: 'البيانات', system: 'الخادم' };
   const ROLE_LABELS = { developer: 'مطور', owner: 'مالك', staff: 'موظف' };
   const STATUS = { wait: ['تحت المراجعة', 'warn'], done: ['مفعّل', 'ok'], ban: ['موقوف', 'bad'], reject: ['مرفوض', 'bad'], active: ['نشط', 'ok'], disabled: ['موقوف', 'bad'] };
   function applyTheme(t) {
@@ -121,5 +144,5 @@ const Panel = (() => {
   function busy(btn, on) { if (!btn) return; btn.disabled = on; btn.classList.toggle('loading', on); btn.setAttribute('aria-busy', String(on)); }
   function alert(el, text, type = 'error') { el.textContent = text || ''; el.dataset.type = type; el.hidden = !text; }
   const workerOrigin = () => new URL(window.PANEL_CONFIG.api).origin;
-  return { workerOrigin, api, h, icon, date, pill, busy, alert, message: c => messages[c] || messages.server, PERM_LABELS, ROLE_LABELS, token: session.get, setToken: session.set, clearToken: session.del };
+  return { workerOrigin, api, h, icon, date, pill, busy, alert, message: c => messages[c] || messages.server, PERM_LABELS, GROUP_LABELS, ROLE_LABELS, token: session.get, setToken: session.set, clearToken: session.del };
 })();
