@@ -29,44 +29,45 @@ window.PanelContent = (() => {
     if (kind === 'pdf') return 'application/pdf';
     return { mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', mkv: 'video/x-matroska', m4v: 'video/x-m4v' }[ext] || 'video/mp4';
   }
-  async function put(url, blob, range) {
-    const r = await fetch(Panel.workerOrigin() + '/upload', { method: 'PUT', headers: { 'Content-Type': 'application/octet-stream', 'X-Upload-Url': url, 'X-Range': range }, body: blob, credentials: 'omit' });
+  async function put(url, blob, range, ticket) {
+    const r = await fetch(Panel.workerOrigin() + '/upload', { method: 'PUT', headers: { 'Content-Type': 'application/octet-stream', 'X-Upload-Url': url, 'X-Range': range, 'X-Upload-Ticket': ticket }, body: blob, credentials: 'omit' });
     try { return await r.json(); } catch { return { ok: false, code: 'server' }; }
   }
+  const fail = (code, detail) => Object.assign(new Error(code), { detail: String(detail || '').slice(0, 160) });
   async function upload(file, kind, onProgress) {
     const mime = guessMime(file, kind);
     if (kind === 'video' && !/^video\//.test(mime)) throw new Error('validation');
     if (kind === 'pdf' && mime !== 'application/pdf') throw new Error('validation');
     const start = await call('admin.uploadStart', { kind, name: file.name.replace(/\.[^.]+$/, '') || file.name, size: file.size, mime });
-    if (!start.ok) throw new Error(start.code);
+    if (!start.ok) throw fail(start.code, start.detail);
     const size = file.size, chunk = start.chunk || 8388608;
     let offset = 0, fails = 0, id = '';
     onProgress(0);
     while (!id) {
       const end = Math.min(offset + chunk, size) - 1;
       let r;
-      try { r = await put(start.upload, file.slice(offset, end + 1), 'bytes ' + offset + '-' + end + '/' + size); } catch { r = { ok: false, code: 'network' }; }
+      try { r = await put(start.upload, file.slice(offset, end + 1), 'bytes ' + offset + '-' + end + '/' + size, start.uploadTicket); } catch { r = { ok: false, code: 'network' }; }
       if (r.ok && r.done) { id = r.id; break; }
       if (r.ok) { offset = r.next || end + 1; fails = 0; onProgress(offset / size); continue; }
-      if (r.code === 'upload_expired' || r.code === 'validation') throw new Error(r.code);
-      if (++fails > 6) throw new Error(r.code || 'network');
+      if (r.code === 'upload_expired' || r.code === 'validation') throw fail(r.code, r.status ? 'chunk ' + r.status : '');
+      if (++fails > 6) throw fail(r.code || 'network', r.status ? 'chunk ' + r.status : '');
       await sleep(1500 * fails);
       try {
-        const q = await put(start.upload, null, 'bytes */' + size);
+        const q = await put(start.upload, null, 'bytes */' + size, start.uploadTicket);
         if (q.ok && q.done) { id = q.id; break; }
         if (q.ok) { offset = q.next || 0; onProgress(offset / size); }
       } catch {}
     }
     onProgress(1);
     const done = await call('admin.uploadDone', { fileId: id, kind, auth: start.auth });
-    if (!done.ok) throw new Error(done.code);
+    if (!done.ok) throw fail(done.code, done.detail);
     return done.file;
   }
   function queueRow(name, kind) {
     const barIn = h('span', { class: 'up-fill' });
     const label = h('small', { class: 'muted', text: 'جاري التجهيز…' });
     const row = h('div', { class: 'row-item up-row' }, h('div', { class: 'course-info' }, h('b', {}, icon(kind === 'video' ? 'video' : 'pdf'), ' ', name), label, h('div', { class: 'up-bar' }, barIn)));
-    return { row, set(p) { barIn.style.setProperty('--p', Math.round(p * 100) + '%'); label.textContent = p >= 1 ? 'بنأكد الملف…' : 'اترفع ' + Math.round(p * 100) + '%'; }, ok() { row.dataset.state = 'ok'; label.textContent = 'اترفع بنجاح'; barIn.style.setProperty('--p', '100%'); }, bad(code) { row.dataset.state = 'bad'; label.textContent = message(code); } };
+    return { row, set(p) { barIn.style.setProperty('--p', Math.round(p * 100) + '%'); label.textContent = p >= 1 ? 'بنأكد الملف…' : 'اترفع ' + Math.round(p * 100) + '%'; }, ok() { row.dataset.state = 'ok'; label.textContent = 'اترفع بنجاح'; barIn.style.setProperty('--p', '100%'); }, bad(code, detail) { row.dataset.state = 'bad'; label.textContent = message(code); } };
   }
   async function runUpload(file, kind, box, after) {
     const q = queueRow(file.name, kind);
@@ -74,7 +75,7 @@ window.PanelContent = (() => {
     uploads.push(file.name);
     window.onbeforeunload = () => 'uploading';
     try { const f = await upload(file, kind, p => q.set(p)); q.ok(); await load(true); if (after) after(f); return f; }
-    catch (e) { q.bad(e.message); return null; }
+    catch (e) { q.bad(e.message, e.detail); return null; }
     finally { uploads.pop(); if (!uploads.length) window.onbeforeunload = null; }
   }
   function picker(accept, multiple, onPick) {
@@ -91,32 +92,46 @@ window.PanelContent = (() => {
     const thumbs = h('div', { class: 'thumbs' });
     const prev = h('div', { class: 'pdf-preview', hidden: true });
     const queue = h('div', { class: 'list' });
-    let built = null;
+    let built = null, previewUrl = '';
+    function releasePreview() { if (previewUrl) URL.revokeObjectURL(previewUrl); previewUrl = ''; }
+    const cleanup = () => { releasePreview(); list.splice(0).forEach(x => URL.revokeObjectURL(x.url)); };
+    dlg.addEventListener('close', cleanup, { once: true });
     function draw() {
-      built = null; prev.hidden = true; up.disabled = true;
+      releasePreview(); built = null; prev.replaceChildren(); prev.hidden = true; up.disabled = true;
       thumbs.replaceChildren(...(list.length ? list.map((x, i) => h('figure', { class: 'thumb', draggable: 'true', 'data-i': i },
-        h('img', { src: x.url, alt: 'صفحة ' + (i + 1) }), h('figcaption', {}, h('b', { class: 'num', text: String(i + 1) }),
+        h('div', { class: 'thumb-img' }, h('img', { src: x.url, alt: 'صفحة ' + (i + 1), class: x.rot ? 'r' + x.rot : '' })), h('figcaption', {}, h('b', { class: 'num', text: String(i + 1) }),
+          h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'لف الصورة', title: 'لف الصورة', onclick: () => { x.rot = ((x.rot || 0) + 1) % 4; draw(); } }, icon('refresh')),
           h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'قبل', disabled: i === 0, onclick: () => { [list[i - 1], list[i]] = [list[i], list[i - 1]]; draw(); } }, icon('up')),
           h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'بعد', disabled: i === list.length - 1, onclick: () => { [list[i + 1], list[i]] = [list[i], list[i + 1]]; draw(); } }, icon('down')),
-          h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'شيل الصورة', onclick: () => { URL.revokeObjectURL(x.url); list.splice(i, 1); draw(); } }, icon('trash'))))) : [h('p', { class: 'empty', text: 'اختار الصور من جهازك. مش هتترفع غير بعد ما تشوف المعاينة وتوافق.' })]));
+          h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'شيل الصورة', onclick: () => { URL.revokeObjectURL(x.url); list.splice(i, 1); draw(); } }, icon('trash'))))) : [h('p', { class: 'empty', text: 'اختار الصور من جهازك أو اسحبها هنا. مش هتترفع غير بعد ما تشوف المعاينة وتوافق.' })]));
       thumbs.querySelectorAll('.thumb').forEach(t => {
         t.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', t.dataset.i); });
         t.addEventListener('dragover', e => e.preventDefault());
-        t.addEventListener('drop', e => { e.preventDefault(); const from = Number(e.dataTransfer.getData('text/plain')), to = Number(t.dataset.i); if (Number.isInteger(from) && from !== to) { const [m] = list.splice(from, 1); list.splice(to, 0, m); draw(); } });
+        t.addEventListener('drop', e => { e.preventDefault(); const value = e.dataTransfer.getData('text/plain'), from = Number(value), to = Number(t.dataset.i); if (value && Number.isInteger(from) && from >= 0 && from < list.length && from !== to) { const [m] = list.splice(from, 1); list.splice(to, 0, m); draw(); } });
       });
       count.textContent = list.length ? list.length + ' صورة' : '';
     }
     const count = h('span', { class: 'muted' });
-    const add = h('button', { class: 'btn outline', type: 'button', onclick: () => picker('image/jpeg,image/png,image/webp', true, files => { files.filter(f => /^image\/(jpeg|png|webp)$/.test(f.type) && f.size < 25 * 1048576).slice(0, 120 - list.length).forEach(f => list.push({ file: f, url: URL.createObjectURL(f) })); draw(); }) }, icon('image'), 'اختار صور');
+    const addFiles = files => {
+      const ok = files.filter(f => /^image\/(jpeg|png|webp)$/.test(f.type) && f.size < 25 * 1048576).slice(0, 120 - list.length);
+      ok.forEach(f => list.push({ file: f, url: URL.createObjectURL(f), rot: 0 }));
+      draw();
+      if (ok.length < files.length) alert(box, 'في صور اتشالت لأنها مش JPG أو PNG أو WEBP، أو أكبر من 25 ميجا، أو العدد عدّى 120 صورة.', 'info');
+    };
+    const add = h('button', { class: 'btn outline', type: 'button', onclick: () => picker('image/jpeg,image/png,image/webp', true, addFiles) }, icon('image'), 'اختار صور');
+    thumbs.addEventListener('dragover', e => { if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) { e.preventDefault(); thumbs.classList.add('drop'); } });
+    thumbs.addEventListener('dragleave', () => thumbs.classList.remove('drop'));
+    thumbs.addEventListener('drop', e => { thumbs.classList.remove('drop'); if (e.dataTransfer && e.dataTransfer.files.length) { e.preventDefault(); addFiles([...e.dataTransfer.files]); } });
     const preview = h('button', { class: 'btn outline', type: 'button', onclick: async () => {
       if (!list.length) { alert(box, 'اختار صورة واحدة على الأقل.'); return; }
       busy(preview, true); alert(box, 'بنجهز الملف على جهازك…', 'info');
       try {
         const imgs = [];
-        for (const x of list) imgs.push(await ImgPdf.toJpeg(x.file));
+        for (const [i, x] of list.entries()) { alert(box, 'بنجهز صورة ' + (i + 1) + ' من ' + list.length + '…', 'info'); imgs.push(await ImgPdf.toJpeg(x.file, x.rot || 0)); }
         built = ImgPdf.build(imgs, name.value);
-        const pages = imgs.map((im, i) => { const L = ImgPdf.layout(im.w, im.h); return h('div', { class: 'page-mini' + (L.page[0] > L.page[1] ? ' wide' : '') }, h('img', { src: list[i].url, alt: '' }), h('span', { class: 'num', text: String(i + 1) })); });
-        const blobUrl = URL.createObjectURL(built);
+        const pages = imgs.map((im, i) => { const L = ImgPdf.layout(im.w, im.h); return h('div', { class: 'page-mini' + (L.page[0] > L.page[1] ? ' wide' : '') }, h('img', { src: URL.createObjectURL(new Blob([im.bytes], { type: 'image/jpeg' })), alt: 'صفحة ' + (i + 1), onload: e => URL.revokeObjectURL(e.target.src) }), h('span', { class: 'num', text: String(i + 1) })); });
+        releasePreview(); previewUrl = URL.createObjectURL(built);
+        const blobUrl = previewUrl;
         prev.replaceChildren(h('p', { class: 'alert', 'data-type': 'success', text: `دي المعاينة: ${imgs.length} صفحة · ${MB(built.size)}. لو الترتيب مظبوط دوس «ارفع الملف».` }), h('div', { class: 'pages-mini' }, pages), h('a', { class: 'btn outline small', href: blobUrl, target: '_blank', rel: 'noopener' }, icon('pdf'), 'افتح المعاينة كملف PDF'));
         prev.hidden = false; up.disabled = false; alert(box, '');
       } catch { alert(box, 'تعذر تجهيز الصور. جرّب صور تانية.'); }
@@ -150,8 +165,8 @@ window.PanelContent = (() => {
       if (!data.courses.length) { list.replaceChildren(h('p', { class: 'empty', text: 'لسه مفيش دورات. ابدأ بـ «دورة جديدة».' })); return; }
       list.replaceChildren(...data.courses.map((c, i) => h('div', { class: 'row-item course-row' },
         c.image ? h('img', { class: 'course-thumb', src: c.image, alt: '' }) : h('span', { class: 'course-thumb empty-thumb' }, icon('book')),
-        h('div', { class: 'course-info' }, h('b', { text: c.title }), h('small', { class: 'muted', text: audienceText(c) }), h('small', { text: c.lectures.length + ' محاضرة' + (c.free ? '' : c.price ? ' · الدورة كاملة ' + c.price + ' جنيه' : '') })),
-        h('div', { class: 'actions' }, tone(c.free ? 'مجانية' : 'مدفوعة', c.free ? 'ok' : 'warn'), tone(c.active ? 'ظاهرة' : 'مخفية', c.active ? 'ok' : 'bad'),
+        h('div', { class: 'course-info' }, h('b', { text: c.title }), h('small', { class: 'muted', text: audienceText(c) }), h('small', { text: c.lectures.length + ' محاضرة' + (c.free ? '' : c.price ? ' · الدورة كاملة ' + c.price + ' جنيه' : '') }), c.lectures.length ? null : h('small', { class: 'warn-text', text: 'الطالب هيشوف الدورة فاضية. دوس «تعديل» وضيف محاضراتها، أو ضيفها من «كل المحاضرات» تحت.' })),
+        h('div', { class: 'actions' }, c.lectures.length ? null : tone('من غير محاضرات', 'bad'), tone(c.free ? 'مجانية' : 'مدفوعة', c.free ? 'ok' : 'warn'), tone(c.active ? 'ظاهرة' : 'مخفية', c.active ? 'ok' : 'bad'),
           h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'لأعلى', disabled: i === 0, onclick: e => order(e.currentTarget, i, -1) }, icon('up')),
           h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'لأسفل', disabled: i === data.courses.length - 1, onclick: e => order(e.currentTarget, i, 1) }, icon('down')),
           h('button', { class: 'btn outline small', type: 'button', onclick: () => courseDialog(c) }, icon('edit'), 'تعديل'),
@@ -165,6 +180,23 @@ window.PanelContent = (() => {
       if (!x.ok) { busy(btn, false); alert(msg, message(x.code), 'error'); return; }
       keep(x); drawAll();
     }
+    async function attach(sel, l) {
+      const c = data.courses.find(x => x.id === sel.value);
+      if (!c) return;
+      sel.disabled = true;
+      const course = { id: c.id, title: c.title, description: c.description, image: c.image, grades: c.grades, audience: c.audience, centers: c.centers, free: c.free, price: c.price, lectures: c.lectures.concat(l.id), active: c.active };
+      const x = await call('admin.courseSave', { course });
+      sel.disabled = false;
+      if (!x.ok) { sel.value = ''; alert(msg, message(x.code), 'error'); return; }
+      keep(x); alert(msg, 'اتضافت «' + l.title + '» لدورة «' + c.title + '». الطالب هيشوفها بعد ما يحدّث الصفحة.', 'success'); drawAll();
+    }
+    function addTo(l) {
+      const options = data.courses.filter(c => !c.lectures.includes(l.id));
+      if (!options.length) return null;
+      const sel = h('select', { 'aria-label': 'ضيفها لدورة' }, h('option', { value: '', text: 'ضيفها لدورة…' }), ...options.map(c => h('option', { value: c.id, text: c.title })));
+      sel.addEventListener('change', () => attach(sel, l));
+      return sel;
+    }
     function drawLectures() {
       const q = lq.value.trim();
       const shown = data.lectures.filter(l => !q || l.title.includes(q));
@@ -172,8 +204,8 @@ window.PanelContent = (() => {
       lecBox.replaceChildren(...shown.map(l => {
         const inCourses = data.courses.filter(c => c.lectures.includes(l.id)).map(c => c.title);
         return h('div', { class: 'row-item course-row' },
-          h('div', { class: 'course-info' }, h('b', { text: l.title }), h('small', { class: 'muted', text: l.items.length ? l.items.map(x => ({ video: 'فيديو: ', pdf: 'PDF: ', homework: 'واجب: ', exam: 'امتحان: ' }[x.kind] || '') + x.title).join(' · ') : 'لسه مفيهاش محتوى' }), h('small', { text: inCourses.length ? 'في: ' + inCourses.join('، ') : 'مش مضافة لأي دورة' })),
-          h('div', { class: 'actions' }, tone(l.price ? l.price + ' جنيه' : 'مجانية', l.price ? 'warn' : 'ok'), l.active ? null : tone('مخفية', 'bad'),
+          h('div', { class: 'course-info' }, h('b', { text: l.title }), h('small', { class: 'muted', text: l.items.length ? l.items.map(x => ({ video: 'فيديو: ', pdf: 'PDF: ', homework: 'واجب: ', exam: 'امتحان: ' }[x.kind] || '') + x.title).join(' · ') : 'لسه مفيهاش محتوى' }), h('small', { class: inCourses.length ? '' : 'warn-text', text: inCourses.length ? 'في: ' + inCourses.join('، ') : 'مش مضافة لأي دورة، فالطالب مش هيشوفها' })),
+          h('div', { class: 'actions' }, inCourses.length ? null : tone('مش في دورة', 'bad'), tone(l.price ? l.price + ' جنيه' : 'مجانية', l.price ? 'warn' : 'ok'), l.active ? null : tone('مخفية', 'bad'), addTo(l),
             h('button', { class: 'btn outline small', type: 'button', onclick: () => lectureDialog(l, () => { dlg.close(); drawAll(); }) }, icon('edit'), 'تعديل'),
             confirmButton('حذف', 'danger small', async btn => { busy(btn, true); const x = await call('admin.lectureDelete', { id: l.id }); busy(btn, false); if (!x.ok) { alert(msg, message(x.code), 'error'); return; } keep(x); alert(msg, 'اتحذفت المحاضرة من كل الدورات.', 'success'); drawAll(); })));
       }));
@@ -183,7 +215,7 @@ window.PanelContent = (() => {
     const steps = h('ol', { class: 'steps-guide' }, h('li', { text: 'اعمل الدورة وحدد تظهر لمين: السنة الدراسية، وأونلاين ولا سنتر، ومجانية ولا مدفوعة.' }), h('li', { text: 'ضيف جواها المحاضرات بالترتيب. المحاضرة الواحدة ممكن تحطها في أكتر من دورة.' }), h('li', { text: 'في كل محاضرة اختار الفيديو أو الـ PDF من الملفات اللي رفعتها، أو ارفعه من نفس المكان.' }));
     setView(
       card('الدورات', 'الطالب بيشوف الدورات اللي اتحددت لسنته وطريقة حضوره بس.', h('button', { class: 'btn primary', type: 'button', onclick: () => courseDialog(null) }, icon('plus'), 'دورة جديدة'), steps, msg, list),
-      card('كل المحاضرات', 'محاضرة بتتعمل مرة وتتحط في أي دورة.', [field('بحث', lq), h('button', { class: 'btn outline', type: 'button', onclick: () => lectureDialog(null, () => { dlg.close(); drawAll(); }) }, icon('plus'), 'محاضرة جديدة')], lecBox));
+      card('كل المحاضرات', 'محاضرة بتتعمل مرة وتتحط في أي دورة.', [field('بحث', lq), h('button', { class: 'btn outline', type: 'button', onclick: () => lectureDialog(null, id => { dlg.close(); drawAll(); if (id && data.courses.length) alert(msg, 'اتعملت المحاضرة. ضيفها لدورة من القايمة اللي جنبها عشان الطالب يشوفها.', 'success'); }) }, icon('plus'), 'محاضرة جديدة')], lecBox));
     K._redraw = drawAll;
   }
   function courseDialog(c, draft) {

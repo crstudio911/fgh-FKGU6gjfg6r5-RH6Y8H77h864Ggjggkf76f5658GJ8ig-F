@@ -1,20 +1,24 @@
 const ImgPdf = (() => {
   const A4 = [595.28, 841.89];
   const MARGIN = 18;
-  function toJpeg(file, max = 2200, quality = 0.86) {
+  function toJpeg(file, rot = 0, max = 2200, quality = 0.86) {
     return new Promise((resolve, reject) => {
       const url = URL.createObjectURL(file);
       const img = new Image();
       img.onload = () => {
         const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
         const w = Math.max(1, Math.round(img.naturalWidth * scale)), h = Math.max(1, Math.round(img.naturalHeight * scale));
+        const turn = ((Number(rot) % 4) + 4) % 4, side = turn % 2 === 1;
+        const cw = side ? h : w, ch = side ? w : h;
         const c = document.createElement('canvas');
-        c.width = w; c.height = h;
+        c.width = cw; c.height = ch;
         const ctx = c.getContext('2d');
-        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h);
-        ctx.drawImage(img, 0, 0, w, h);
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cw, ch);
+        ctx.translate(cw / 2, ch / 2);
+        ctx.rotate(turn * Math.PI / 2);
+        ctx.drawImage(img, -w / 2, -h / 2, w, h);
         URL.revokeObjectURL(url);
-        c.toBlob(async b => { if (!b) { reject(new Error('jpeg')); return; } resolve({ bytes: new Uint8Array(await b.arrayBuffer()), w, h }); }, 'image/jpeg', quality);
+        c.toBlob(async b => { if (!b) { reject(new Error('jpeg')); return; } resolve({ bytes: new Uint8Array(await b.arrayBuffer()), w: cw, h: ch }); }, 'image/jpeg', quality);
       };
       img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('image')); };
       img.src = url;

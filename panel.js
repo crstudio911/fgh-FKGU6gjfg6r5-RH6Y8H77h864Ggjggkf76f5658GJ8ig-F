@@ -242,14 +242,16 @@
       alert(box, 'تم حفظ بيانات الطالب.', 'success');
       students();
     } }, icon('check'), 'حفظ');
-    const temp = !can('students.password') ? null : confirmButton('كلمة مرور مؤقتة', 'outline', async btn => {
+    const nextPassword = h('input', { type: 'password', dir: 'ltr', minlength: 6, maxlength: 64, autocomplete: 'new-password' });
+    if (can('students.password')) body.push(field('كلمة المرور الجديدة للطالب', nextPassword));
+    const temp = !can('students.password') ? null : confirmButton('تغيير كلمة المرور', 'outline', async btn => {
+      if (!/^[\x21-\x7E]{6,64}$/.test(nextPassword.value)) { alert(box, 'اكتب كلمة مرور من 6 إلى 64 حرفًا إنجليزيًا أو رقمًا أو رمزًا بدون مسافات.'); nextPassword.focus(); return; }
       busy(btn, true);
-      const x = await call('admin.studentPassword', { id: s.id });
+      const x = await call('admin.studentPassword', { id: s.id, password: nextPassword.value });
       busy(btn, false);
       if (!x.ok) { alert(box, message(x.code)); return; }
-      alert(box, '', 'info');
-      const secret = h('div', { class: 'secret', text: x.password });
-      $('#dlg-body').append(h('p', { class: 'alert', 'data-type': 'warn', text: 'ابعت كلمة المرور دي للطالب بنفسك. مش هتظهر تاني، والطالب اتخرج من كل أجهزته.' }), secret);
+      nextPassword.value = '';
+      alert(box, 'تم تغيير كلمة المرور وإنهاء كل جلسات الطالب وإلغاء أكواد الاستعادة القديمة.', 'success');
     });
     const out = !can('students.logout') ? null : confirmButton('خروج من الأجهزة', 'outline', async btn => {
       busy(btn, true);
@@ -628,7 +630,7 @@
     Panel.clearToken();
     location.replace('index.html?notice=logout');
   });
-  (async () => {
+  const start = async () => {
     const r = await call('admin.me');
     if (!r.ok) { if (r.code !== 'session' && r.code !== 'disabled') failed(r, () => location.reload()); return; }
     me = r.staff;
@@ -642,5 +644,6 @@
     const queue = SECTIONS.filter(s => s.prefetch && can(s.perm) && s !== current);
     const worker = async () => { while (queue.length) { const s = queue.shift(); try { await s.prefetch(); } catch {} } };
     setTimeout(() => { worker(); worker(); worker(); }, 300);
-  })();
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start();
 })();
