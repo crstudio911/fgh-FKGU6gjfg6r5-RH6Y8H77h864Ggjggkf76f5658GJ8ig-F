@@ -42,6 +42,8 @@ const Panel = (() => {
     drive_keys: 'مفاتيح حساب الخدمة GOOGLE_SERVICE_ACCOUNT_EMAIL و GOOGLE_PRIVATE_KEY ناقصة.',
     drive_auth: 'جوجل رفض مفاتيح حساب الخدمة. راجع GOOGLE_PRIVATE_KEY والإيميل.',
     drive_quota: 'حساب الخدمة مالوش مساحة تخزين. شارك الفولدر من Shared Drive أو خلّي DRIVE_AUTH = owner (شوف ملف INSTALL).',
+    drive_scope: 'Apps Script مالوش صلاحية درايف. ضيف ملف appsscript.json وشغّل update ووافق على الصلاحيات، وبعدين اعمل New version للنشر.',
+    drive_access: 'الحساب اللي ناشر Apps Script مش شايف الفولدر. اتأكد من GOOGLE_DRIVE_FOLDER_ID وإن الفولدر في درايف نفس الحساب.',
     drive: 'جوجل درايف رفض العملية. جرّب تاني أو راجع إعدادات الفولدر.',
     upload_expired: 'جلسة الرفع انتهت. ابدأ رفع الملف من الأول.',
     upload: 'تعذر رفع الصورة. تأكد من IMG-API وجرّب تاني.',
