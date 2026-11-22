@@ -457,6 +457,7 @@
     let socialsNow = {};
     try { socialsNow = JSON.parse(s.socials || '{}') || {}; } catch { socialsNow = {}; }
     const SOC = [['facebook', 'فيسبوك'], ['youtube', 'يوتيوب'], ['instagram', 'إنستجرام'], ['tiktok', 'تيك توك'], ['telegram', 'تيليجرام'], ['whatsapp', 'قناة واتساب']];
+    const SOC_HOSTS = { facebook: /^https:\/\/((www|m|web|business)\.)?(facebook\.com|fb\.com|fb\.me|fb\.watch)(\/|$)/i, youtube: /^https:\/\/((www|m|music)\.)?(youtube\.com|youtu\.be)(\/|$)/i, instagram: /^https:\/\/(www\.)?(instagram\.com|instagr\.am)(\/|$)/i, tiktok: /^https:\/\/((www|m|vm|vt)\.)?tiktok\.com(\/|$)/i, telegram: /^https:\/\/(www\.)?(t\.me|telegram\.me|telegram\.dog)(\/|$)/i, whatsapp: /^https:\/\/((www|api)\.)?(whatsapp\.com\/channel|chat\.whatsapp\.com|wa\.me|whatsapp\.com\/send)(\/|\?|$)/i };
     const socials = SOC.map(([k, label]) => ({ k, label, input: h('input', { type: 'url', dir: 'ltr', maxlength: 200, value: socialsNow[k] || '', placeholder: 'https://' }) }));
     const msg = note();
     const preview = h('div', { class: 'contact-preview' });
@@ -474,7 +475,13 @@
       if (bad) { alert(msg, `الرقم ${bad} مش رقم موبايل مصري صحيح.`); return; }
       if (subj.length > 5 || sup.length > 5) { alert(msg, 'لحد 5 أرقام في كل نوع.'); return; }
       const soc = {};
-      for (const x of socials) { const v = x.input.value.trim(); if (v && !/^https:\/\//.test(v)) { alert(msg, `رابط ${x.label} لازم يبدأ بـ https://`); return; } soc[x.k] = v; }
+      for (const x of socials) {
+        let v = x.input.value.trim().replace(/^http:\/\//i, 'https://');
+        if (v && !/^https:\/\//i.test(v)) v = 'https://' + v.replace(/^\/+/, '');
+        x.input.value = v;
+        if (v && !SOC_HOSTS[x.k].test(v)) { alert(msg, `رابط ${x.label} مش مظبوط. انسخ الرابط من التطبيق نفسه (زرار مشاركة ← نسخ الرابط).`); return; }
+        soc[x.k] = v;
+      }
       busy(save, true);
       const x = await call('admin.settingsSave', { settings: { teacher_phone: tp, subject_phones: subj, support_phones: sup, socials: soc, about: about.value.trim() } });
       busy(save, false);
@@ -575,7 +582,7 @@
       if (!x.ok) { filesBox.replaceChildren(h('p', { class: 'alert', text: message(x.code) })); return; }
       const good = x.files.filter(f => f.status >= 200 && f.status < 300).length;
       const size = x.files.reduce((a, f) => a + f.bytes, 0);
-      filesBox.replaceChildren(h('p', { class: 'alert', 'data-type': good === x.files.length ? 'success' : 'warn', text: `${good} من ${x.files.length} ملف شغال · الحجم ${(size / 1024).toFixed(0)} KB · ${x.site}` }), grid(['الملف', 'الحالة', 'الحجم', 'النوع', 'الزمن'], x.files.map(f => [h('span', { class: 'num', text: f.path }), tone(String(f.status || 'خطأ'), f.status >= 200 && f.status < 300 ? 'ok' : 'bad'), num((f.bytes / 1024).toFixed(1) + ' KB'), h('small', { class: 'num', text: f.type || '—' }), num(f.ms + ' ms')])));
+      filesBox.replaceChildren(h('p', { class: 'alert', 'data-type': good === x.files.length ? 'success' : 'warn', text: `${good} من ${x.files.length} ملف شغال · الحجم ${(size / 1024).toFixed(0)} KB · ${x.site}${x.source === 'scan/files.js' ? ' · من القائمة البديلة files.js' : ''}` }), grid(['الملف', 'الحالة', 'الحجم', 'النوع', 'الزمن'], x.files.map(f => [h('span', { class: 'num', text: f.path }), tone(String(f.status || 'خطأ'), f.status >= 200 && f.status < 300 ? 'ok' : 'bad'), num((f.bytes / 1024).toFixed(1) + ' KB'), h('small', { class: 'num', text: f.type || '—' }), num(f.ms + ' ms')])));
     } }, icon('file'), 'فحص ملفات الموقع');
     const fnBox = note();
     const fns = (s.functions || []).filter(f => !f.developer || me.role === 'developer');
